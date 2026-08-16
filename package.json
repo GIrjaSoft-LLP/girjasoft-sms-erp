@@ -1,0 +1,44 @@
+{
+  "name": "girjasoft-sms-erp",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed:superadmin": "tsx scripts/seed-superadmin.ts",
+    "seed:kg-demo": "tsx scripts/seed-kg-demo.ts",
+    "seed:dm01": "tsx scripts/populate-dm01.ts",
+    "seed:dm01-academic": "tsx scripts/fix-dm01-academic.ts",
+    "seed:dm01-complete": "tsx scripts/complete-dm01.ts",
+    "seed:dm01-fill": "tsx scripts/fill-missing-records.ts",
+    "seed:dm01-parents": "tsx scripts/backfill-parent-logins.ts",
+    "seed:dm01-teachers": "tsx scripts/backfill-teacher-logins.ts",
+    "seed:dm01-photos": "tsx scripts/seed-demo-photos.ts",
+    "test:security": "tsx tests/security.test.ts"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
+    "jose": "^6.2.9",
+    "mongoose": "^9.9.2",
+    "next": "16.3.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.3.1",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.12",
+    "typescript": "^5"
+  }
+}

@@ -1,0 +1,546 @@
+import mongoose, { Schema } from "mongoose";
+
+function tenantFields() {
+  return {
+    workspaceId: { type: Schema.Types.ObjectId, ref: "Workspace", required: true, index: true },
+  };
+}
+
+const studentSchema = new Schema(
+  {
+    ...tenantFields(),
+    admissionNumber: { type: String, required: true, trim: true },
+    name: { type: String, required: true, trim: true },
+    gender: { type: String, default: "" },
+    dateOfBirth: { type: String, default: "" },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null, index: true },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null, index: true },
+    parentId: { type: Schema.Types.ObjectId, ref: "Parent", default: null },
+    phone: { type: String, default: "" },
+    email: { type: String, default: "" },
+    address: { type: String, default: "" },
+    photo: { type: String, default: "" },
+    status: { type: String, default: "ACTIVE", index: true },
+    academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+  },
+  { timestamps: true },
+);
+studentSchema.index({ workspaceId: 1, admissionNumber: 1 }, { unique: true });
+studentSchema.index({ workspaceId: 1, classId: 1, sectionId: 1 });
+studentSchema.index({ workspaceId: 1, name: 1 });
+
+const parentSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    email: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    studentIds: [{ type: Schema.Types.ObjectId, ref: "Student" }],
+    relation: { type: String, default: "Guardian" },
+    address: { type: String, default: "" },
+    status: { type: String, default: "ACTIVE" },
+  },
+  { timestamps: true },
+);
+parentSchema.index({ workspaceId: 1, email: 1 });
+parentSchema.index({ workspaceId: 1, phone: 1 });
+
+const teacherSchema = new Schema(
+  {
+    ...tenantFields(),
+    employeeId: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    department: { type: String, default: "Academic" },
+    subjects: [{ type: String }],
+    photo: { type: String, default: "" },
+    status: { type: String, default: "ACTIVE", index: true },
+  },
+  { timestamps: true },
+);
+teacherSchema.index({ workspaceId: 1, employeeId: 1 }, { unique: true });
+teacherSchema.index({ workspaceId: 1, email: 1 });
+
+const staffSchema = new Schema(
+  {
+    ...tenantFields(),
+    employeeId: { type: String, required: true },
+    name: { type: String, required: true },
+    email: { type: String, default: "" },
+    phone: { type: String, default: "" },
+    department: { type: String, default: "" },
+    designation: { type: String, default: "" },
+    status: { type: String, default: "ACTIVE", index: true },
+  },
+  { timestamps: true },
+);
+staffSchema.index({ workspaceId: 1, employeeId: 1 }, { unique: true });
+
+const classSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    numericName: { type: Number, default: 0 },
+    status: { type: String, default: "ACTIVE" },
+  },
+  { timestamps: true },
+);
+classSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
+
+const sectionSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
+    capacity: { type: Number, default: 40 },
+  },
+  { timestamps: true },
+);
+sectionSchema.index({ workspaceId: 1, classId: 1, name: 1 }, { unique: true });
+sectionSchema.index({ workspaceId: 1, classId: 1 });
+
+const subjectSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    code: { type: String, required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+  },
+  { timestamps: true },
+);
+subjectSchema.index({ workspaceId: 1, code: 1 }, { unique: true });
+
+const academicSessionSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    isCurrent: { type: Boolean, default: false },
+  },
+  { timestamps: true },
+);
+academicSessionSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
+academicSessionSchema.index({ workspaceId: 1, academicSessionId: 1 });
+
+const attendanceSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    date: { type: String, required: true },
+    status: { type: String, enum: ["PRESENT", "ABSENT", "LATE", "LEAVE"], required: true },
+    remarks: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+attendanceSchema.index({ workspaceId: 1, date: 1 });
+attendanceSchema.index({ workspaceId: 1, studentId: 1, date: 1 }, { unique: true });
+attendanceSchema.index({ workspaceId: 1, classId: 1, sectionId: 1, date: 1 });
+
+const teacherAttendanceSchema = new Schema(
+  {
+    ...tenantFields(),
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", required: true },
+    date: { type: String, required: true },
+    status: { type: String, enum: ["PRESENT", "ABSENT", "LATE", "LEAVE"], required: true },
+  },
+  { timestamps: true },
+);
+teacherAttendanceSchema.index({ workspaceId: 1, teacherId: 1, date: 1 }, { unique: true });
+teacherAttendanceSchema.index({ workspaceId: 1, date: 1 });
+
+const timetableSchema = new Schema(
+  {
+    ...tenantFields(),
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    day: { type: String, required: true },
+    period: { type: String, required: true },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
+  },
+  { timestamps: true },
+);
+timetableSchema.index({ workspaceId: 1, classId: 1, sectionId: 1, day: 1 });
+
+const homeworkSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    description: { type: String, default: "" },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    dueDate: { type: String, default: "" },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
+  },
+  { timestamps: true },
+);
+homeworkSchema.index({ workspaceId: 1, classId: 1, sectionId: 1 });
+
+const examSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    academicSessionId: { type: Schema.Types.ObjectId, default: null },
+    startDate: { type: String, default: "" },
+    endDate: { type: String, default: "" },
+    status: { type: String, default: "SCHEDULED" },
+  },
+  { timestamps: true },
+);
+examSchema.index({ workspaceId: 1, academicSessionId: 1 });
+
+const examScheduleSchema = new Schema(
+  {
+    ...tenantFields(),
+    examId: { type: Schema.Types.ObjectId, ref: "Exam", required: true },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    date: { type: String, default: "" },
+    startTime: { type: String, default: "" },
+    endTime: { type: String, default: "" },
+    maxMarks: { type: Number, default: 100 },
+  },
+  { timestamps: true },
+);
+examScheduleSchema.index({ workspaceId: 1, examId: 1 });
+
+const markSchema = new Schema(
+  {
+    ...tenantFields(),
+    examId: { type: Schema.Types.ObjectId, ref: "Exam", required: true },
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    marksObtained: { type: Number, default: 0 },
+    maxMarks: { type: Number, default: 100 },
+    grade: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+markSchema.index({ workspaceId: 1, examId: 1, studentId: 1, subjectId: 1 }, { unique: true });
+
+const resultSchema = new Schema(
+  {
+    ...tenantFields(),
+    examId: { type: Schema.Types.ObjectId, ref: "Exam", required: true },
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    totalMarks: { type: Number, default: 0 },
+    percentage: { type: Number, default: 0 },
+    grade: { type: String, default: "" },
+    status: { type: String, default: "PASS" },
+  },
+  { timestamps: true },
+);
+resultSchema.index({ workspaceId: 1, examId: 1, studentId: 1 }, { unique: true });
+
+const feeStructureSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    amount: { type: Number, required: true },
+    frequency: { type: String, default: "MONTHLY" },
+    academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+  },
+  { timestamps: true },
+);
+feeStructureSchema.index({ workspaceId: 1, name: 1, classId: 1 });
+
+const studentFeeSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    feeStructureId: { type: Schema.Types.ObjectId, ref: "FeeStructure", default: null },
+    amount: { type: Number, required: true },
+    dueDate: { type: String, default: "" },
+    status: { type: String, enum: ["PENDING", "PARTIAL", "PAID"], default: "PENDING", index: true },
+    paidAmount: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+studentFeeSchema.index({ workspaceId: 1, studentId: 1, status: 1 });
+
+const feePaymentSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    studentFeeId: { type: Schema.Types.ObjectId, ref: "StudentFee", default: null },
+    amount: { type: Number, required: true },
+    method: { type: String, default: "CASH" },
+    receiptNumber: { type: String, required: true },
+    date: { type: String, required: true },
+    remarks: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+feePaymentSchema.index({ workspaceId: 1, receiptNumber: 1 }, { unique: true });
+feePaymentSchema.index({ workspaceId: 1, studentId: 1, date: 1 });
+
+const expenseSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    category: { type: String, default: "General" },
+    amount: { type: Number, required: true },
+    date: { type: String, required: true },
+    notes: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+expenseSchema.index({ workspaceId: 1, date: 1 });
+
+const salaryStructureSchema = new Schema(
+  {
+    ...tenantFields(),
+    staffId: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
+    basic: { type: Number, required: true },
+    allowances: { type: Number, default: 0 },
+    deductions: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+salaryStructureSchema.index({ workspaceId: 1, staffId: 1 });
+
+const payrollSchema = new Schema(
+  {
+    ...tenantFields(),
+    staffName: { type: String, required: true },
+    employeeId: { type: String, default: "" },
+    month: { type: String, required: true },
+    basic: { type: Number, required: true },
+    allowances: { type: Number, default: 0 },
+    deductions: { type: Number, default: 0 },
+    netPay: { type: Number, required: true },
+    status: { type: String, default: "DRAFT" },
+  },
+  { timestamps: true },
+);
+payrollSchema.index({ workspaceId: 1, month: 1, employeeId: 1 });
+
+const leaveTypeSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    days: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+leaveTypeSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
+
+const leaveRequestSchema = new Schema(
+  {
+    ...tenantFields(),
+    requesterName: { type: String, required: true },
+    leaveTypeId: { type: Schema.Types.ObjectId, ref: "LeaveType", default: null },
+    fromDate: { type: String, required: true },
+    toDate: { type: String, required: true },
+    reason: { type: String, default: "" },
+    status: { type: String, default: "PENDING", index: true },
+  },
+  { timestamps: true },
+);
+leaveRequestSchema.index({ workspaceId: 1, status: 1 });
+
+const bookSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    author: { type: String, default: "" },
+    isbn: { type: String, default: "" },
+    copies: { type: Number, default: 1 },
+    available: { type: Number, default: 1 },
+  },
+  { timestamps: true },
+);
+bookSchema.index({ workspaceId: 1, isbn: 1 });
+
+const bookIssueSchema = new Schema(
+  {
+    ...tenantFields(),
+    bookId: { type: Schema.Types.ObjectId, ref: "Book", required: true },
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", default: null },
+    issueDate: { type: String, required: true },
+    dueDate: { type: String, default: "" },
+    returnDate: { type: String, default: "" },
+    status: { type: String, default: "ISSUED", index: true },
+  },
+  { timestamps: true },
+);
+bookIssueSchema.index({ workspaceId: 1, bookId: 1, status: 1 });
+
+const vehicleSchema = new Schema(
+  {
+    ...tenantFields(),
+    number: { type: String, required: true },
+    type: { type: String, default: "BUS" },
+    capacity: { type: Number, default: 40 },
+    driver: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+vehicleSchema.index({ workspaceId: 1, number: 1 }, { unique: true });
+
+const routeSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    stops: { type: String, default: "" },
+    vehicleId: { type: Schema.Types.ObjectId, ref: "Vehicle", default: null },
+  },
+  { timestamps: true },
+);
+routeSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
+
+const transportAssignmentSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
+    routeId: { type: Schema.Types.ObjectId, ref: "TransportRoute", required: true },
+    vehicleId: { type: Schema.Types.ObjectId, ref: "Vehicle", default: null },
+    pickupPoint: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+transportAssignmentSchema.index({ workspaceId: 1, studentId: 1 }, { unique: true });
+
+const inventoryItemSchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    sku: { type: String, required: true },
+    quantity: { type: Number, default: 0 },
+    unit: { type: String, default: "pcs" },
+    location: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+inventoryItemSchema.index({ workspaceId: 1, sku: 1 }, { unique: true });
+
+const inventoryTransactionSchema = new Schema(
+  {
+    ...tenantFields(),
+    itemId: { type: Schema.Types.ObjectId, ref: "InventoryItem", required: true },
+    type: { type: String, enum: ["IN", "OUT"], required: true },
+    quantity: { type: Number, required: true },
+    date: { type: String, required: true },
+    notes: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+inventoryTransactionSchema.index({ workspaceId: 1, itemId: 1, date: 1 });
+
+const noticeSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    body: { type: String, default: "" },
+    audience: { type: String, default: "ALL" },
+    date: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+noticeSchema.index({ workspaceId: 1, date: 1 });
+
+const notificationSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    body: { type: String, default: "" },
+    userId: { type: Schema.Types.ObjectId, default: null },
+    read: { type: Boolean, default: false },
+  },
+  { timestamps: true },
+);
+notificationSchema.index({ workspaceId: 1, userId: 1 });
+
+const documentSchema = new Schema(
+  {
+    ...tenantFields(),
+    title: { type: String, required: true },
+    category: { type: String, default: "General" },
+    url: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+
+const auditLogSchema = new Schema(
+  {
+    ...tenantFields(),
+    actorId: { type: Schema.Types.ObjectId, required: true },
+    actorEmail: { type: String, required: true },
+    action: { type: String, required: true },
+    entity: { type: String, default: "" },
+    entityId: { type: String, default: "" },
+    metadata: { type: Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true },
+);
+auditLogSchema.index({ workspaceId: 1, createdAt: -1 });
+auditLogSchema.index({ workspaceId: 1, action: 1 });
+
+const settingsSchema = new Schema(
+  {
+    ...tenantFields(),
+    organization: { type: Schema.Types.Mixed, default: {} },
+    academic: { type: Schema.Types.Mixed, default: {} },
+    finance: { type: Schema.Types.Mixed, default: {} },
+    attendance: { type: Schema.Types.Mixed, default: {} },
+    examination: { type: Schema.Types.Mixed, default: {} },
+    communication: { type: Schema.Types.Mixed, default: {} },
+    theme: { type: Schema.Types.Mixed, default: {} },
+  },
+  { timestamps: true },
+);
+settingsSchema.index({ workspaceId: 1 }, { unique: true });
+
+function model(name: string, schema: Schema, collection: string) {
+  return mongoose.models[name] || mongoose.model(name, schema, collection);
+}
+
+export const Student = model("Student", studentSchema, "students");
+export const Parent = model("Parent", parentSchema, "parents");
+export const Teacher = model("Teacher", teacherSchema, "teachers");
+if (!Student.schema.path("photo")) {
+  Student.schema.add({ photo: { type: String, default: "" } });
+}
+if (!Teacher.schema.path("photo")) {
+  Teacher.schema.add({ photo: { type: String, default: "" } });
+}
+export const Staff = model("Staff", staffSchema, "staff");
+export const SchoolClass = model("SchoolClass", classSchema, "classes");
+export const Section = model("Section", sectionSchema, "sections");
+export const Subject = model("Subject", subjectSchema, "subjects");
+export const AcademicSession = model("AcademicSession", academicSessionSchema, "academicSessions");
+export const Attendance = model("Attendance", attendanceSchema, "attendance");
+export const TeacherAttendance = model("TeacherAttendance", teacherAttendanceSchema, "teacherAttendance");
+export const Timetable = model("Timetable", timetableSchema, "timetables");
+export const Homework = model("Homework", homeworkSchema, "homework");
+export const Exam = model("Exam", examSchema, "exams");
+export const ExamSchedule = model("ExamSchedule", examScheduleSchema, "examSchedules");
+export const Mark = model("Mark", markSchema, "marks");
+export const Result = model("Result", resultSchema, "results");
+export const FeeStructure = model("FeeStructure", feeStructureSchema, "feeStructures");
+export const StudentFee = model("StudentFee", studentFeeSchema, "studentFees");
+export const FeePayment = model("FeePayment", feePaymentSchema, "feePayments");
+export const Expense = model("Expense", expenseSchema, "expenses");
+export const SalaryStructure = model("SalaryStructure", salaryStructureSchema, "salaryStructures");
+export const Payroll = model("Payroll", payrollSchema, "payroll");
+export const LeaveType = model("LeaveType", leaveTypeSchema, "leaveTypes");
+export const LeaveRequest = model("LeaveRequest", leaveRequestSchema, "leaveRequests");
+export const Book = model("Book", bookSchema, "books");
+export const BookIssue = model("BookIssue", bookIssueSchema, "bookIssues");
+export const Vehicle = model("Vehicle", vehicleSchema, "vehicles");
+export const TransportRoute = model("TransportRoute", routeSchema, "routes");
+export const TransportAssignment = model("TransportAssignment", transportAssignmentSchema, "transportAssignments");
+export const InventoryItem = model("InventoryItem", inventoryItemSchema, "inventoryItems");
+export const InventoryTransaction = model("InventoryTransaction", inventoryTransactionSchema, "inventoryTransactions");
+export const Notice = model("Notice", noticeSchema, "notices");
+export const Notification = model("Notification", notificationSchema, "notifications");
+export const Document = model("Document", documentSchema, "documents");
+export const AuditLog = model("AuditLog", auditLogSchema, "auditLogs");
+export const Settings = model("Settings", settingsSchema, "settings");
