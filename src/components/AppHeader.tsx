@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import { BrandMark } from "@/components/BrandMark";
+import { APP_NAME } from "@/config/branding";
 import { SETTINGS_NAV } from "@/config/nav";
 import { api } from "@/lib/client";
 
@@ -11,6 +13,7 @@ type User = {
   email: string;
   permissions?: string[];
   sessionRole?: string;
+  photo?: string;
 };
 
 type Workspace = {
@@ -79,40 +82,54 @@ function initials(name: string) {
 export function AppHeader({
   user,
   workspace,
+  enabledModuleIds = [],
+  variant = "workspace",
   onToggleSidebar,
   onChangePassword,
   onSignOut,
 }: {
   user: User | null;
   workspace?: Workspace | null;
+  enabledModuleIds?: string[];
+  variant?: "workspace" | "platform";
   onToggleSidebar: () => void;
   onChangePassword: () => void;
   onSignOut: () => void;
 }) {
   const pathname = usePathname();
+  const isPlatform = variant === "platform";
   const perms = user?.permissions ?? [];
-  const allowAll = user?.sessionRole === "SUPER_ADMIN";
+  const allowAll = user?.sessionRole === "SUPER_ADMIN" && !isPlatform;
   const can = (permission: string) => allowAll || perms.includes(permission);
-  const settingsItems = SETTINGS_NAV.filter((item) => can(item.permission));
+  const commsEnabled = allowAll || enabledModuleIds.includes("comms-center");
+  const settingsItems = isPlatform ? [] : SETTINGS_NAV.filter((item) => can(item.permission));
+  const platformSettings = isPlatform && (user?.sessionRole === "SUPER_ADMIN" || perms.includes("platform.settings.view"));
+  const dashboardHref = isPlatform ? "/platform/dashboard" : "/dashboard";
+  const dashboardActive = pathname === dashboardHref || pathname?.startsWith(`${dashboardHref}/`);
   const [menu, setMenu] = useState<"user" | "settings" | null>(null);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [unread, setUnread] = useState(0);
   const [helpUnread, setHelpUnread] = useState(0);
   const root = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!can("notices.view")) return;
+    setPhotoFailed(false);
+  }, [user?.photo]);
+
+  useEffect(() => {
+    if (isPlatform || !can("notices.view") || !commsEnabled) return;
     api<{ count: number }>("/api/notices/unread")
       .then((data) => setUnread(data.count ?? 0))
       .catch(() => setUnread(0));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.email]);
+  }, [user?.email, isPlatform]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isPlatform) return;
     api<{ count: number }>("/api/help/unread")
       .then((data) => setHelpUnread(data.count ?? 0))
       .catch(() => setHelpUnread(0));
-  }, [user]);
+  }, [user, isPlatform]);
 
   useEffect(() => {
     function onDoc(event: MouseEvent) {
@@ -142,7 +159,17 @@ export function AppHeader({
             <path d="M4 7h16M4 12h16M4 17h16" />
           </svg>
         </button>
-        {workspace ? (
+        {isPlatform ? (
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="h-9 w-9 shrink-0">
+              <BrandMark variant="mark" size={36} />
+            </div>
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold leading-tight text-[#0b1b3a]">{APP_NAME}</div>
+              <div className="truncate text-xs text-slate-500">Platform Administration</div>
+            </div>
+          </div>
+        ) : workspace ? (
           <div className="flex min-w-0 items-center gap-3">
             {workspace.logo ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -166,16 +193,28 @@ export function AppHeader({
         ) : null}
         <div className="flex-1" />
         <div className="flex items-center gap-1 text-sm text-[#0b1b3a]">
-          {can("profile.view") ? (
+          {isPlatform || can("profile.view") ? (
             <Link
-              href="/dashboard"
+              href={dashboardHref}
               className={`rounded-lg px-3 py-2 font-medium ${
-                pathname === "/dashboard" || pathname?.startsWith("/dashboard/")
+                dashboardActive ? "bg-[#4c7eff] text-white" : "hover:bg-slate-100"
+              }`}
+            >
+              Dashboard
+            </Link>
+          ) : null}
+          {isPlatform ? (
+            <Link
+              href="/platform/tickets"
+              aria-label="Tickets"
+              className={`group relative grid h-9 w-9 place-items-center rounded-lg ${
+                pathname === "/platform/tickets" || pathname?.startsWith("/platform/tickets/")
                   ? "bg-[#4c7eff] text-white"
                   : "hover:bg-slate-100"
               }`}
             >
-              Dashboard
+              <IconBell />
+              <HeaderIconTip label="Tickets" />
             </Link>
           ) : null}
           {can("reports.view") ? (
@@ -192,7 +231,7 @@ export function AppHeader({
               <HeaderIconTip label="Reports" />
             </Link>
           ) : null}
-          {can("notices.view") ? (
+          {can("notices.view") && commsEnabled ? (
             <Link
               href="/modules/notices"
               aria-label="Notices"
@@ -211,7 +250,7 @@ export function AppHeader({
               <HeaderIconTip label="Notices" />
             </Link>
           ) : null}
-          {user ? (
+          {!isPlatform && user ? (
             <Link
               href="/help"
               aria-label="Help"
@@ -228,6 +267,18 @@ export function AppHeader({
                 </span>
               ) : null}
               <HeaderIconTip label="Help" />
+            </Link>
+          ) : null}
+          {platformSettings ? (
+            <Link
+              href="/platform/settings"
+              aria-label="Settings"
+              className={`group relative grid h-9 w-9 place-items-center rounded-lg ${
+                pathname?.startsWith("/platform/settings") ? "bg-[#4c7eff] text-white" : "hover:bg-slate-100"
+              }`}
+            >
+              <IconGear />
+              <HeaderIconTip label="Settings" />
             </Link>
           ) : null}
           {settingsItems.length ? (
@@ -263,11 +314,16 @@ export function AppHeader({
             <div className="relative">
               <button
                 type="button"
-                className="grid h-9 w-9 place-items-center rounded-full bg-[#4c7eff] text-xs font-semibold text-white hover:brightness-105"
+                className="grid h-9 w-9 overflow-hidden place-items-center rounded-full bg-[#4c7eff] text-xs font-semibold text-white hover:brightness-105"
                 onClick={() => setMenu(menu === "user" ? null : "user")}
                 aria-label="Account menu"
               >
-                {initials(user.name) || "U"}
+                {user.photo && !photoFailed ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={user.photo} alt="" className="h-full w-full object-cover" onError={() => setPhotoFailed(true)} />
+                ) : (
+                  initials(user.name) || "U"
+                )}
               </button>
               {menu === "user" ? (
                 <div className="absolute right-0 z-50 mt-1 w-60 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
@@ -275,13 +331,23 @@ export function AppHeader({
                     <p className="truncate text-sm font-semibold text-[#0b1b3a]">{user.name}</p>
                     <p className="truncate text-xs text-slate-500">{user.email}</p>
                   </div>
-                  <Link
-                    href="/profile"
-                    className="block px-3 py-2 text-sm hover:bg-slate-50"
-                    onClick={() => setMenu(null)}
-                  >
-                    My Profile
-                  </Link>
+                  {isPlatform ? (
+                    <Link
+                      href="/platform/profile"
+                      className="block px-3 py-2 text-sm hover:bg-slate-50"
+                      onClick={() => setMenu(null)}
+                    >
+                      My Profile
+                    </Link>
+                  ) : (
+                    <Link
+                      href="/profile"
+                      className="block px-3 py-2 text-sm hover:bg-slate-50"
+                      onClick={() => setMenu(null)}
+                    >
+                      My Profile
+                    </Link>
+                  )}
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"

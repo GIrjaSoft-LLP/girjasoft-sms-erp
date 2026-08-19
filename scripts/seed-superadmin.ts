@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import mongoose from "mongoose";
 import { SUPER_ADMIN_EMAIL } from "../src/config/branding";
 import { hashPassword } from "../src/lib/password";
+import { ensurePlatformSystemRoles } from "../src/lib/platform-access";
 import { PlatformAdmin } from "../src/models/platform";
 
 function loadLocalEnv() {
@@ -36,6 +37,7 @@ async function main() {
   }
 
   await mongoose.connect(uri, { dbName: process.env.MONGODB_DB ?? "girjasoft_sms_erp" });
+  await ensurePlatformSystemRoles();
 
   const existing = await PlatformAdmin.findOne({ email });
   if (existing) {

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SUPER_ADMIN_EMAIL } from "@/config/branding";
-import { ApiError, errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
 import { User } from "@/models/identity";
@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaceUsers.edit");
     const { id } = await ctx.params;
     const user = await User.findById(id).select("+passwordHash");
     if (!user) throw new ApiError(404, "User not found.");
@@ -39,7 +39,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
 export async function DELETE(_request: Request, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaceUsers.delete");
     const { id } = await ctx.params;
     const user = await User.findById(id);
     if (!user) throw new ApiError(404, "User not found.");

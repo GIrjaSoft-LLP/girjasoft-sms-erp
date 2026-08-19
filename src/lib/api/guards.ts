@@ -2,18 +2,18 @@ import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import { ZodError } from "zod";
 import { connectMongo } from "@/lib/mongodb";
-import { getSession, getViewWorkspaceId, isPlatformSuperAdmin, type SessionPayload } from "@/lib/session";
+import { ApiError } from "@/lib/api/errors";
+import { getSession, getViewWorkspaceId, isPlatformActor, isPlatformSuperAdmin, type SessionPayload } from "@/lib/session";
 import { hasPermission, isParentLike, isStudentLike, isTeacherLike } from "@/lib/rbac";
+import { hasPlatformPermission } from "@/lib/platform-access";
+import { ensureWorkspaceReady } from "@/lib/workspace-setup-server";
+import { resolveWorkspacePermissionsForUser, shouldAllowAllModules } from "@/lib/session-permissions";
+import { RESOURCE_TO_MODULE } from "@/config/erp-modules";
 import { Workspace } from "@/models/platform";
 import { omitSecrets } from "@/lib/sanitize";
+import { enrichParentSession } from "@/lib/parent-access";
 
-export class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-  }
-}
+export { ApiError } from "@/lib/api/errors";
 
 export function json(data: unknown, status = 200) {
   return NextResponse.json(omitSecrets(JSON.parse(JSON.stringify(data))), { status });
@@ -44,8 +44,24 @@ export async function requireSession() {
 
 export async function requireSuperAdmin() {
   const session = await requireSession();
-  if (!isPlatformSuperAdmin(session)) {
-    throw new ApiError(403, "Platform Super Admin access required.");
+  if (!isPlatformActor(session)) {
+    throw new ApiError(403, "Platform access required.");
+  }
+  return session;
+}
+
+export async function requirePlatformSession() {
+  const session = await requireSession();
+  if (!isPlatformActor(session)) {
+    throw new ApiError(403, "Platform access required.");
+  }
+  return session;
+}
+
+export async function requirePlatformPerm(permission: string) {
+  const session = await requirePlatformSession();
+  if (!hasPlatformPermission(session, permission)) {
+    throw new ApiError(403, "Permission denied.");
   }
   return session;
 }
@@ -54,12 +70,19 @@ export type TenantContext = {
   session: SessionPayload;
   workspaceId: string;
   impersonating: boolean;
+  enabledModules: string[];
+  /** Permissions resolved from roles (not stale JWT claims). */
+  permissions: string[];
+  allowAllModules: boolean;
 };
 
 export async function requireWorkspaceContext(): Promise<TenantContext> {
-  const session = await requireSession();
+  let session = await requireSession();
 
-  if (isPlatformSuperAdmin(session)) {
+  if (isPlatformActor(session)) {
+    if (!hasPlatformPermission(session, "platform.workspaces.manage")) {
+      throw new ApiError(403, "Permission denied.");
+    }
     const viewId = await getViewWorkspaceId();
     if (!viewId) {
       throw new ApiError(403, "Open a workspace before accessing workspace data.");
@@ -68,10 +91,15 @@ export async function requireWorkspaceContext(): Promise<TenantContext> {
     if (!workspace) {
       throw new ApiError(404, "Workspace not found.");
     }
+    const enabledModules = await ensureWorkspaceReady(workspace);
+    const allowAllModules = shouldAllowAllModules(session, true);
     return {
       session,
       workspaceId: String(workspace._id),
       impersonating: true,
+      enabledModules,
+      permissions: session.permissions,
+      allowAllModules,
     };
   }
 
@@ -87,18 +115,35 @@ export async function requireWorkspaceContext(): Promise<TenantContext> {
     throw new ApiError(403, "Workspace is not active.");
   }
 
+  const enabledModules = await ensureWorkspaceReady(workspace);
+  const permissions = await resolveWorkspacePermissionsForUser(session.sub, String(workspace._id));
+  const workspaceId = String(workspace._id);
+  if (isParentLike(session.roleSlugs)) {
+    session = await enrichParentSession(session, workspaceId);
+  }
   return {
     session,
-    workspaceId: String(workspace._id),
+    workspaceId,
     impersonating: false,
+    enabledModules,
+    permissions,
+    allowAllModules: false,
   };
 }
 
+export function requireModuleEnabled(ctx: TenantContext, resourceKey: string) {
+  const moduleId = RESOURCE_TO_MODULE[resourceKey];
+  if (!moduleId) return;
+  if (!ctx.enabledModules.includes(moduleId)) {
+    throw new ApiError(403, "This module is not enabled for your school.");
+  }
+}
+
 export function requirePerm(ctx: TenantContext, permission: string) {
-  if (ctx.impersonating && isPlatformSuperAdmin(ctx.session)) {
+  if (ctx.impersonating && isPlatformActor(ctx.session) && hasPlatformPermission(ctx.session, "platform.workspaces.manage")) {
     return;
   }
-  if (!hasPermission(ctx.session.permissions, permission)) {
+  if (!hasPermission(ctx.permissions, permission)) {
     throw new ApiError(403, "Permission denied.");
   }
 }

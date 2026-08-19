@@ -6,7 +6,7 @@ export const SESSION_COOKIE = "gs_session";
 export const VIEW_WORKSPACE_COOKIE = "gs_view_workspace";
 
 export type AccountType = "PLATFORM" | "WORKSPACE";
-export type SessionRole = "SUPER_ADMIN" | "WORKSPACE_USER";
+export type SessionRole = "SUPER_ADMIN" | "PLATFORM_USER" | "WORKSPACE_USER";
 
 export type SessionPayload = JWTPayload & {
   sub: string;
@@ -59,13 +59,16 @@ export async function getViewWorkspaceId() {
   return store.get(VIEW_WORKSPACE_COOKIE)?.value ?? null;
 }
 
+export function isPlatformActor(session: SessionPayload | null) {
+  return !!session && session.accountType === "PLATFORM";
+}
+
 export function isPlatformSuperAdmin(session: SessionPayload | null) {
   return (
-    !!session &&
-    session.accountType === "PLATFORM" &&
-    session.sessionRole === "SUPER_ADMIN" &&
-    session.workspaceId === null &&
-    session.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
+    isPlatformActor(session) &&
+    session!.sessionRole === "SUPER_ADMIN" &&
+    session!.workspaceId === null &&
+    session!.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()
   );
 }
 

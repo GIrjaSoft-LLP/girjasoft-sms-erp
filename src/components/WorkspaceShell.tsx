@@ -8,6 +8,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { PasswordDialog } from "@/components/PasswordDialog";
 import { SidebarNavGroup } from "@/components/SidebarNavGroup";
 import { WORKSPACE_NAV } from "@/config/nav";
+import { navHrefAllowed } from "@/lib/workspace-modules";
 import { api } from "@/lib/client";
 
 type Me = {
@@ -24,15 +25,19 @@ type Me = {
 };
 
 type Dash = {
-  workspace: { name: string; schoolName: string; logo?: string; code: string };
+  workspace: { name: string; schoolName: string; logo?: string; code: string; enabledModules?: string[] };
   impersonating: boolean;
 };
+
+type LinkedChild = { _id: string; name: string; className?: string; sectionName?: string };
 
 export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const [me, setMe] = useState<Me["user"] | null>(null);
   const [dash, setDash] = useState<Dash | null>(null);
+  const [enabledModuleIds, setEnabledModuleIds] = useState<string[]>([]);
+  const [linkedChildren, setLinkedChildren] = useState<LinkedChild[]>([]);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -41,33 +46,65 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       .then((data) => {
         setMe(data.user);
         if (data.user.sessionRole === "SUPER_ADMIN" && data.user.accountType === "PLATFORM") {
-          return api<Dash>("/api/dashboard").then(setDash).catch(() => {
-            router.replace("/platform/dashboard");
-          });
+          return Promise.all([
+            api<Dash>("/api/dashboard"),
+            api<{ enabledModuleIds: string[] }>("/api/workspace/modules"),
+          ])
+            .then(([dashboard, modules]) => {
+              setDash(dashboard);
+              setEnabledModuleIds(modules.enabledModuleIds);
+            })
+            .catch(() => {
+              router.replace("/platform/dashboard");
+            });
         }
-        return api<Dash>("/api/dashboard").then(setDash);
+        return Promise.all([
+          api<Dash>("/api/dashboard"),
+          api<{ enabledModuleIds: string[] }>("/api/workspace/modules"),
+        ]).then(([dashboard, modules]) => {
+          setDash(dashboard);
+          setEnabledModuleIds(modules.enabledModuleIds);
+        });
       })
       .catch(() => router.replace("/login"));
   }, [router]);
 
+  useEffect(() => {
+    if (!me?.roleSlugs?.includes("parent") || !(me.linkedStudentIds?.length ?? 0)) {
+      setLinkedChildren([]);
+      return;
+    }
+    api<{ items: LinkedChild[] }>("/api/students")
+      .then((data) => setLinkedChildren(data.items))
+      .catch(() => setLinkedChildren([]));
+  }, [me]);
+
+  const workspaceLike = useMemo(() => ({ enabledModules: enabledModuleIds }), [enabledModuleIds]);
+
   const nav = useMemo(() => {
     const perms = me?.permissions ?? [];
-    const allow = me?.sessionRole === "SUPER_ADMIN";
+    const allow = me?.sessionRole === "SUPER_ADMIN" || Boolean(dash?.impersonating);
     return WORKSPACE_NAV.flatMap((item) => {
+      if (item.href === "/dashboard") {
+        return navHrefAllowed(item.href, workspaceLike, perms, allow) ? [item] : [];
+      }
       if (item.children?.length) {
-        const children = allow
-          ? item.children
-          : item.children.filter((child) => perms.includes(child.permission));
+        const children = (allow ? item.children : item.children.filter((child) => perms.includes(child.permission))).filter(
+          (child) => navHrefAllowed(child.href, workspaceLike, perms, allow),
+        );
         if (!children.length) return [];
         return [{ ...item, children }];
       }
-      if (allow) return [item];
+      if (allow) {
+        return navHrefAllowed(item.href, workspaceLike, perms, true) ? [item] : [];
+      }
       const visible = item.anyOf
         ? item.anyOf.some((permission) => perms.includes(permission))
         : perms.includes(item.permission);
-      return visible ? [item] : [];
+      if (!visible) return [];
+      return navHrefAllowed(item.href, workspaceLike, perms, false) ? [item] : [];
     });
-  }, [me]);
+  }, [dash?.impersonating, me, workspaceLike]);
 
   async function logout() {
     await api("/api/auth/logout", { method: "POST" });
@@ -90,7 +127,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#f3f6fb]">
       {dash?.impersonating ? (
-        <div className="shrink-0 bg-amber-400 text-[#0b1b3a] px-4 py-2 text-sm font-semibold flex justify-between">
+        <div className="flex shrink-0 justify-between bg-amber-400 px-4 py-2 text-sm font-semibold text-[#0b1b3a]">
           <span>
             Viewing Workspace: {dash.workspace.schoolName} ({dash.workspace.code})
           </span>
@@ -102,6 +139,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
       <AppHeader
         user={me}
         workspace={dash?.workspace}
+        enabledModuleIds={enabledModuleIds}
         onToggleSidebar={() => setSidebarOpen((open) => !open)}
         onChangePassword={() => setPasswordOpen(true)}
         onSignOut={() => void logout()}
@@ -126,9 +164,13 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                         ? pathname.startsWith("/settings")
                           ? "bg-[#4c7eff]"
                           : "hover:bg-white/10"
-                        : pathname === item.href
-                          ? "bg-[#4c7eff]"
-                          : "hover:bg-white/10"
+                        : item.href === "/dashboard"
+                          ? pathname === "/dashboard"
+                            ? "bg-[#4c7eff]"
+                            : "hover:bg-white/10"
+                          : pathname === item.href
+                            ? "bg-[#4c7eff]"
+                            : "hover:bg-white/10"
                     }`}
                   >
                     {item.label}
@@ -145,11 +187,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
                     value={me.linkedStudentId ?? ""}
                     onChange={(e) => switchChild(e.target.value)}
                   >
-                    {me.linkedStudentIds?.map((id) => (
-                      <option key={id} value={id}>
-                        {id}
-                      </option>
-                    ))}
+                    {me.linkedStudentIds?.map((id) => {
+                      const child = linkedChildren.find((row) => row._id === id);
+                      const label = child
+                        ? `${child.name}${child.className ? ` · ${child.className}` : ""}${child.sectionName ? `-${child.sectionName}` : ""}`
+                        : id;
+                      return (
+                        <option key={id} value={id}>
+                          {label}
+                        </option>
+                      );
+                    })}
                   </select>
                 </label>
               </div>

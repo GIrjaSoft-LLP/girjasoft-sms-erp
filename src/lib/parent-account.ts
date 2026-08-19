@@ -55,7 +55,7 @@ export async function assertStaffManagedUser(
   user: { roleIds?: unknown[]; linkedParentId?: unknown; linkedTeacherId?: unknown },
 ) {
   if (user.linkedParentId) {
-    throw new ApiError(400, "Parent logins are managed from the Parents section.");
+    throw new ApiError(400, "Parent logins are managed from Student Info → Parents / Guardians.");
   }
   if (user.linkedTeacherId) {
     throw new ApiError(400, "Teacher logins are managed from the Teachers section.");

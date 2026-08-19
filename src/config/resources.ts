@@ -26,10 +26,14 @@ export const RESOURCES: Record<string, ResourceConfig> = {
     columns: [
       { key: "photo", label: "Photo" },
       { key: "admissionNumber", label: "Admission No" },
+      { key: "studentCode", label: "Student ID" },
       { key: "name", label: "Name" },
       { key: "className", label: "Class" },
       { key: "sectionName", label: "Section" },
+      { key: "dateOfBirth", label: "Date of Birth" },
       { key: "gender", label: "Gender" },
+      { key: "parentName", label: "Parent Name" },
+      { key: "parentMobile", label: "Parent Mobile" },
       { key: "status", label: "Status" },
     ],
     fields: [
@@ -46,7 +50,7 @@ export const RESOURCES: Record<string, ResourceConfig> = {
   parents: {
     key: "parents",
     collection: "parents",
-    label: "Parents",
+    label: "Parents / Guardians",
     permission: "parents",
     searchFields: ["name", "email", "phone"],
     columns: [
@@ -127,7 +131,7 @@ export const RESOURCES: Record<string, ResourceConfig> = {
     ],
     fields: [
       { name: "name", label: "Class Name", required: true },
-      { name: "numericName", label: "Numeric Order", type: "number" },
+      { name: "numericName", label: "Class Order", type: "number" },
     ],
   },
   sections: {
@@ -138,13 +142,17 @@ export const RESOURCES: Record<string, ResourceConfig> = {
     searchFields: ["name"],
     columns: [
       { key: "className", label: "Class" },
-      { key: "name", label: "Section" },
+      { key: "classOrder", label: "Class Order" },
+      { key: "name", label: "Section Name" },
       { key: "capacity", label: "Capacity" },
+      { key: "studentCount", label: "Students" },
+      { key: "availableSeats", label: "Available Seats" },
     ],
     fields: [
+      { name: "classId", label: "Class", required: true },
+      { name: "classOrder", label: "Class Order", type: "number", required: true },
       { name: "name", label: "Section Name", required: true },
-      { name: "classId", label: "Class ID", required: true },
-      { name: "capacity", label: "Capacity", type: "number" },
+      { name: "capacity", label: "Capacity", type: "number", required: true },
     ],
   },
   subjects: {
@@ -154,13 +162,16 @@ export const RESOURCES: Record<string, ResourceConfig> = {
     permission: "subjects",
     searchFields: ["name", "code"],
     columns: [
-      { key: "code", label: "Code" },
-      { key: "name", label: "Subject" },
       { key: "className", label: "Class" },
+      { key: "classOrder", label: "Class Order" },
+      { key: "name", label: "Subject Name" },
+      { key: "code", label: "Subject Code" },
     ],
     fields: [
+      { name: "classId", label: "Class", required: true },
+      { name: "classOrder", label: "Class Order", type: "number", required: true },
       { name: "name", label: "Subject Name", required: true },
-      { name: "code", label: "Code", required: true },
+      { name: "code", label: "Subject Code", required: true },
     ],
   },
   academicSessions: {

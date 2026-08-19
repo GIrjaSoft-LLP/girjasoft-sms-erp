@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { jwtVerify } from "jose";
+import { STUDENT_INFO_LEGACY_REDIRECTS } from "@/config/student-info";
 
 const SESSION_COOKIE = "gs_session";
 
@@ -37,16 +38,21 @@ export async function middleware(request: NextRequest) {
   }
 
   if (session && pathname === "/login") {
-    if (session.sessionRole === "SUPER_ADMIN") {
+    if (session.accountType === "PLATFORM") {
       return NextResponse.redirect(new URL("/platform/dashboard", request.url));
     }
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
 
   if (pathname.startsWith("/platform")) {
-    if (session?.sessionRole !== "SUPER_ADMIN" || session?.accountType !== "PLATFORM") {
+    if (session?.accountType !== "PLATFORM") {
       return NextResponse.redirect(new URL("/dashboard", request.url));
     }
+  }
+
+  const legacyTarget = STUDENT_INFO_LEGACY_REDIRECTS[pathname];
+  if (legacyTarget) {
+    return NextResponse.redirect(new URL(legacyTarget, request.url));
   }
 
   return NextResponse.next();

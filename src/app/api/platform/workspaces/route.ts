@@ -6,11 +6,14 @@ import {
   ApiError,
   errorResponse,
   json,
-  requireSuperAdmin,
+  requirePlatformPerm,
 } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
 import { initializeWorkspace, nextWorkspaceCode } from "@/lib/workspace-bootstrap";
+import { getDefaultEnabledModuleIds } from "@/config/erp-modules";
+import { CURRENT_MODULE_CONFIG_VERSION } from "@/lib/workspace-modules";
+import { syncSystemRolesForWorkspace } from "@/lib/system-role-sync";
 import {
   cookieOptions,
   VIEW_WORKSPACE_COOKIE,
@@ -18,6 +21,7 @@ import {
 import { PlatformAuditLog, Workspace } from "@/models/platform";
 import { Role, User } from "@/models/identity";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { workspaceSubscription } from "@/lib/workspace-validity";
 import {
   Student,
   Teacher,
@@ -38,6 +42,7 @@ const workspaceSchema = z.object({
   website: z.string().optional().default(""),
   logo: z.string().optional().default(""),
   academicSession: z.string().optional().default(""),
+  validityTill: z.string().min(8),
   status: z.enum(["ACTIVE", "SUSPENDED", "DISABLED", "ARCHIVED"]).optional().default("ACTIVE"),
   admin: z.object({
     name: z.string().min(2),
@@ -50,7 +55,7 @@ const workspaceSchema = z.object({
 
 export async function GET() {
   try {
-    await requireSuperAdmin();
+    await requirePlatformPerm("platform.workspaces.view");
     const workspaces = await Workspace.find().sort({ createdAt: -1 }).lean();
     const rows = await Promise.all(
       workspaces.map(async (workspace) => {
@@ -67,6 +72,7 @@ export async function GET() {
           users,
           students,
           admin: admin ? { name: admin.name, email: admin.email } : null,
+          ...workspaceSubscription(workspace),
         };
       }),
     );
@@ -78,7 +84,7 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaces.create");
     const body = workspaceSchema.parse(await request.json());
     if (body.admin.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase()) {
       throw new ApiError(400, "Cannot use the platform Super Admin email.");
@@ -103,10 +109,14 @@ export async function POST(request: Request) {
       website: body.website,
       logo: body.logo,
       academicSession: body.academicSession,
+      validityTill: new Date(body.validityTill),
       status: body.status,
+      enabledModules: getDefaultEnabledModuleIds(),
+      moduleConfigVersion: CURRENT_MODULE_CONFIG_VERSION,
     });
 
     await initializeWorkspace(String(workspace._id), body.schoolName);
+    await syncSystemRolesForWorkspace(String(workspace._id));
     const adminRole = await Role.findOne({
       workspaceId: workspace._id,
       slug: "workspace_admin",

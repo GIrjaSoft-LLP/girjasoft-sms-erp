@@ -1,11 +1,11 @@
 import { cookies } from "next/headers";
-import { errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { errorResponse, json, requirePlatformSession } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { cookieOptions, VIEW_WORKSPACE_COOKIE, getViewWorkspaceId } from "@/lib/session";
 
 export async function POST() {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformSession();
     const viewId = await getViewWorkspaceId();
     const store = await cookies();
     store.set(VIEW_WORKSPACE_COOKIE, "", { ...cookieOptions, maxAge: 0 });

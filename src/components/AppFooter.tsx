@@ -4,22 +4,24 @@ import Link from "next/link";
 import { BrandMark } from "@/components/BrandMark";
 import { APP_NAME, APP_VERSION, COMPANY_NAME } from "@/config/branding";
 
-export function AppFooter() {
+export function AppFooter({ showLogo = true }: { showLogo?: boolean }) {
   const year = new Date().getFullYear();
   const version = APP_VERSION.replace(/^v/i, "");
   return (
     <footer className="shrink-0 border-t border-slate-200 bg-[#eef2f7] px-4 py-2.5 text-xs text-slate-500">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex min-w-0 items-center gap-2">
-          <a
-            href="https://girjasoft.com"
-            target="_blank"
-            rel="noreferrer"
-            aria-label="GirjaSoft website"
-            className="shrink-0"
-          >
-            <BrandMark variant="mark" size={28} />
-          </a>
+          {showLogo ? (
+            <a
+              href="https://girjasoft.com"
+              target="_blank"
+              rel="noreferrer"
+              aria-label="GirjaSoft website"
+              className="shrink-0"
+            >
+              <BrandMark variant="mark" size={28} />
+            </a>
+          ) : null}
           <div className="min-w-0">
             <p className="truncate font-semibold text-[#0b1b3a]">{APP_NAME}</p>
             <p className="text-[11px] leading-tight">V{version}</p>

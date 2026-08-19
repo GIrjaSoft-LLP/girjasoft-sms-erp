@@ -8,7 +8,13 @@ export type PermissionAction =
   | "issue"
   | "return"
   | "assign"
-  | "reports";
+  | "reports"
+  | "approve"
+  | "verify"
+  | "convert"
+  | "cancel"
+  | "refund"
+  | "promote";
 
 export type PermissionModule = {
   key: string;
@@ -18,14 +24,20 @@ export type PermissionModule = {
 };
 
 export const PERMISSION_MODULES: PermissionModule[] = [
-  { key: "students", label: "Students", department: "Academic", actions: ["view", "create", "edit", "delete"] },
+  { key: "students", label: "Students", department: "Academic", actions: ["view", "create", "edit", "delete", "promote", "export"] },
+  {
+    key: "admissions",
+    label: "Admissions",
+    department: "Administration",
+    actions: ["view", "create", "edit", "delete", "approve", "verify", "convert", "collect", "cancel", "refund", "export", "reports"],
+  },
   { key: "teachers", label: "Teachers", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "staff", label: "Staff", department: "HR", actions: ["view", "create", "edit", "delete"] },
   { key: "parents", label: "Parents", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "classes", label: "Classes", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "sections", label: "Sections", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "subjects", label: "Subjects", department: "Academic", actions: ["view", "create", "edit", "delete"] },
-  { key: "attendance", label: "Attendance", department: "Academic", actions: ["view", "create", "edit", "delete"] },
+  { key: "attendance", label: "Attendance", department: "Academic", actions: ["view", "create", "edit", "delete", "reports", "export"] },
   { key: "teacherAttendance", label: "Teacher Attendance", department: "HR", actions: ["view", "create", "edit", "delete"] },
   { key: "timetable", label: "Timetable", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "homework", label: "Homework", department: "Academic", actions: ["view", "create", "edit", "delete"] },

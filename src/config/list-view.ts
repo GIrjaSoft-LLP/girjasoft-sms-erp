@@ -11,8 +11,8 @@ export const RESOURCE_POPULATE: Record<string, PopulateSpec[]> = {
     { path: "classId", select: "name" },
     { path: "sectionId", select: "name" },
   ],
-  sections: [{ path: "classId", select: "name" }],
-  subjects: [{ path: "classId", select: "name" }],
+  sections: [{ path: "classId", select: "name numericName" }],
+  subjects: [{ path: "classId", select: "name numericName" }],
   attendance: [
     { path: "studentId", select: "name admissionNumber" },
     { path: "classId", select: "name" },
@@ -198,6 +198,7 @@ export function flattenListItem(item: Record<string, unknown>) {
     studentName: labelFromRef(student),
     admissionNumber: student?.admissionNumber ? String(student.admissionNumber) : item.admissionNumber,
     className: labelFromRef(classRef) || labelFromRef(nestedClass),
+    classOrder: classRef?.numericName != null ? String(classRef.numericName) : "",
     sectionName: labelFromRef(section) || labelFromRef(nestedSection),
     teacherName: labelFromRef(teacher) || labelFromRef(staff),
     subjectName: labelFromRef(subject),

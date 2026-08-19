@@ -3,7 +3,7 @@ import { SUPER_ADMIN_EMAIL } from "@/config/branding";
 import { ApiError, errorResponse, json, requireSession } from "@/lib/api/guards";
 import { logPlatform, logWorkspace } from "@/lib/audit";
 import { hashPassword, verifyPassword } from "@/lib/password";
-import { isPlatformSuperAdmin } from "@/lib/session";
+import { isPlatformActor } from "@/lib/session";
 import { PlatformAdmin } from "@/models/platform";
 import { User } from "@/models/identity";
 
@@ -17,7 +17,7 @@ export async function POST(request: Request) {
       })
       .parse(await request.json());
 
-    if (isPlatformSuperAdmin(session)) {
+    if (isPlatformActor(session)) {
       const admin = await PlatformAdmin.findById(session.sub).select("+passwordHash");
       if (!admin) throw new ApiError(404, "Account not found.");
       const valid = await verifyPassword(body.currentPassword, admin.passwordHash);

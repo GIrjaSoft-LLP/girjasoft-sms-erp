@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed:superadmin": "tsx scripts/seed-superadmin.ts",
+    "seed:workspace-modules": "tsx scripts/backfill-workspace-modules.ts",
     "seed:kg-demo": "tsx scripts/seed-kg-demo.ts",
     "seed:dm01": "tsx scripts/populate-dm01.ts",
     "seed:dm01-academic": "tsx scripts/fix-dm01-academic.ts",
@@ -16,6 +17,10 @@
     "seed:dm01-parents": "tsx scripts/backfill-parent-logins.ts",
     "seed:dm01-teachers": "tsx scripts/backfill-teacher-logins.ts",
     "seed:dm01-photos": "tsx scripts/seed-demo-photos.ts",
+    "seed:admissions-dm01": "tsx scripts/seed-admissions-dm01.ts",
+    "seed:attendance-dm01": "tsx scripts/seed-attendance-dm01.ts",
+    "seed:promotion-dm01": "tsx scripts/seed-promotion-dm01.ts",
+    "seed:admissions-all": "tsx scripts/backfill-admissions-all-workspaces.ts",
     "test:security": "tsx tests/security.test.ts"
   },
   "dependencies": {

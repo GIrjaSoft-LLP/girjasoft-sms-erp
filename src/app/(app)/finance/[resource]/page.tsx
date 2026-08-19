@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { ModuleManager } from "@/components/ModuleManager";
+import { ModulePageGuard } from "@/components/ModulePageGuard";
 import { isFinanceResource } from "@/config/nav";
 
 export default async function FinanceModulePage({
@@ -9,5 +10,9 @@ export default async function FinanceModulePage({
 }) {
   const { resource } = await params;
   if (!isFinanceResource(resource)) notFound();
-  return <ModuleManager resourceKey={resource} />;
+  return (
+    <ModulePageGuard resourceKey={resource}>
+      <ModuleManager resourceKey={resource} />
+    </ModulePageGuard>
+  );
 }

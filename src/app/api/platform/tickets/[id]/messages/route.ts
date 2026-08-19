@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { ApiError, errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { saveTicketFile } from "@/lib/ticket-files";
 import { notifySchoolUser } from "@/lib/ticket-notify";
@@ -9,7 +9,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function POST(request: NextRequest, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.tickets.edit");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
     if (!ticket) throw new ApiError(404, "Ticket not found.");

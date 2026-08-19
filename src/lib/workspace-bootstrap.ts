@@ -1,8 +1,12 @@
 import mongoose from "mongoose";
+import { DEFAULT_ADMISSION_SETTINGS } from "@/config/admissions";
+import { DEFAULT_ATTENDANCE_SETTINGS } from "@/config/attendance";
 import { Role } from "@/models/identity";
 import { Settings, AcademicSession, LeaveType } from "@/models/workspace";
 import { Workspace } from "@/models/platform";
 import { getDefaultRoleDefinitions } from "@/lib/rbac";
+import { getDefaultEnabledModuleIds } from "@/config/erp-modules";
+import { CURRENT_MODULE_CONFIG_VERSION } from "@/lib/workspace-modules";
 
 export async function initializeWorkspace(workspaceId: string, schoolName: string) {
   const id = new mongoose.Types.ObjectId(workspaceId);
@@ -19,9 +23,10 @@ export async function initializeWorkspace(workspaceId: string, schoolName: strin
     organization: { schoolName },
     academic: { gradeSystem: "A-F" },
     finance: { currency: "INR", receiptPrefix: "GS" },
-    attendance: { lateAfterMinutes: 15 },
+    attendance: DEFAULT_ATTENDANCE_SETTINGS,
     examination: { passingPercentage: 33 },
     communication: { email: true, sms: false, whatsapp: false },
+    admission: DEFAULT_ADMISSION_SETTINGS,
   });
 
   const year = new Date().getFullYear();
@@ -40,6 +45,8 @@ export async function initializeWorkspace(workspaceId: string, schoolName: strin
 
   await Workspace.findByIdAndUpdate(id, {
     academicSession: `${year}-${year + 1}`,
+    enabledModules: getDefaultEnabledModuleIds(),
+    moduleConfigVersion: CURRENT_MODULE_CONFIG_VERSION,
   });
 }
 

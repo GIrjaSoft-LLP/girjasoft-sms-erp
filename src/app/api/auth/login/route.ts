@@ -6,6 +6,10 @@ import { logPlatform, logWorkspace } from "@/lib/audit";
 import { connectMongo } from "@/lib/mongodb";
 import { verifyPassword } from "@/lib/password";
 import { mergePermissions } from "@/lib/rbac";
+import { resolveEffectivePermissions } from "@/lib/session-permissions";
+import { enrichParentSession } from "@/lib/parent-access";
+import { buildPlatformSession, ensurePlatformSystemRoles } from "@/lib/platform-access";
+import { isWorkspaceExpired } from "@/lib/workspace-validity";
 import {
   cookieOptions,
   SESSION_COOKIE,
@@ -73,23 +77,19 @@ export async function POST(request: Request) {
       }
       platformAdmin.lastLoginAt = new Date();
       await platformAdmin.save();
-      const session: SessionPayload = {
-        sub: String(platformAdmin._id),
-        email: platformAdmin.email,
-        name: platformAdmin.name,
-        accountType: "PLATFORM",
-        sessionRole: "SUPER_ADMIN",
-        workspaceId: null,
-        permissions: [],
-        roleSlugs: ["super_admin"],
-      };
+      await ensurePlatformSystemRoles();
+      const session = await buildPlatformSession(platformAdmin);
       const token = await signSession(session);
       store.set(SESSION_COOKIE, token, { ...cookieOptions, maxAge: 60 * 60 * 12 });
       store.delete(VIEW_WORKSPACE_COOKIE);
-      await logPlatform(session, "SUPER_ADMIN_LOGIN");
+      await logPlatform(session, "PLATFORM_LOGIN");
       return json({
         accountType: "PLATFORM",
-        redirectTo: "/platform/dashboard",
+        redirectTo: session.permissions.includes("platform.workspaces.view")
+          ? "/platform/dashboard"
+          : session.permissions.includes("platform.tickets.view")
+            ? "/platform/tickets"
+            : "/platform/settings",
         user: {
           name: session.name,
           email: session.email,
@@ -125,6 +125,9 @@ export async function POST(request: Request) {
     if (workspace.status !== "ACTIVE") {
       throw new ApiError(403, "Workspace is not active.");
     }
+    if (isWorkspaceExpired(workspace.validityTill)) {
+      throw new ApiError(403, "Workspace subscription has expired.");
+    }
 
     user.lastLoginAt = new Date();
     await user.save();
@@ -135,7 +138,7 @@ export async function POST(request: Request) {
     await logWorkspace(session, session.workspaceId!, "USER_LOGIN", "users", session.sub);
     return json({
       accountType: "WORKSPACE",
-      redirectTo: "/dashboard",
+      redirectTo: session.roleSlugs.includes("parent") ? "/modules/student-info" : "/dashboard",
       user: {
         name: session.name,
         email: session.email,
@@ -150,16 +153,23 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    const session = await requireSession();
-    if (session.email.toLowerCase() === SUPER_ADMIN_EMAIL.toLowerCase() && session.accountType === "PLATFORM") {
+    let session = await requireSession();
+    if (session.accountType === "PLATFORM") {
       return json({
         user: {
           name: session.name,
           email: session.email,
           accountType: session.accountType,
           sessionRole: session.sessionRole,
+          permissions: session.permissions,
+          roleSlugs: session.roleSlugs,
+          photo: `/api/platform/profile/photo`,
         },
       });
+    }
+    const permissions = await resolveEffectivePermissions(session);
+    if (session.workspaceId && session.roleSlugs?.includes("parent")) {
+      session = await enrichParentSession(session, session.workspaceId);
     }
     return json({
       user: {
@@ -168,7 +178,7 @@ export async function GET() {
         accountType: session.accountType,
         sessionRole: session.sessionRole,
         workspaceId: session.workspaceId,
-        permissions: session.permissions,
+        permissions,
         roleSlugs: session.roleSlugs,
         linkedStudentId: session.linkedStudentId,
         linkedStudentIds: session.linkedStudentIds,

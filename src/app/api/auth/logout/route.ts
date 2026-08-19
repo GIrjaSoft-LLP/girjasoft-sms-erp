@@ -1,13 +1,13 @@
 import { cookies } from "next/headers";
 import { errorResponse, json, requireSession } from "@/lib/api/guards";
 import { logPlatform, logWorkspace } from "@/lib/audit";
-import { cookieOptions, SESSION_COOKIE, VIEW_WORKSPACE_COOKIE, isPlatformSuperAdmin } from "@/lib/session";
+import { cookieOptions, SESSION_COOKIE, VIEW_WORKSPACE_COOKIE, isPlatformActor } from "@/lib/session";
 
 export async function POST() {
   try {
     const session = await requireSession();
-    if (isPlatformSuperAdmin(session)) {
-      await logPlatform(session, "SUPER_ADMIN_LOGOUT");
+    if (isPlatformActor(session)) {
+      await logPlatform(session, "PLATFORM_LOGOUT");
     } else if (session.workspaceId) {
       await logWorkspace(session, session.workspaceId, "USER_LOGOUT", "users", session.sub);
     }

@@ -1,13 +1,13 @@
 import mongoose from "mongoose";
 import { NextRequest } from "next/server";
-import { errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { TICKET_PRIORITIES, TICKET_STATUSES, TICKET_TYPES, supportModules } from "@/config/tickets";
 import { SupportTicket } from "@/models/support";
 import { Workspace } from "@/models/platform";
 
 export async function GET(request: NextRequest) {
   try {
-    await requireSuperAdmin();
+    await requirePlatformPerm("platform.tickets.view");
     const url = new URL(request.url);
     const q = (url.searchParams.get("q") ?? "").trim();
     const status = url.searchParams.get("status") ?? "";

@@ -3,17 +3,26 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { FINANCE_NAV } from "@/config/nav";
+import { navHrefAllowed } from "@/lib/workspace-modules";
 import { api } from "@/lib/client";
 
 export default function FinanceIndexPage() {
   const router = useRouter();
 
   useEffect(() => {
-    api<{ user: { permissions?: string[]; sessionRole?: string } }>("/api/auth/me")
-      .then((data) => {
+    Promise.all([
+      api<{ user: { permissions?: string[]; sessionRole?: string } }>("/api/auth/me"),
+      api<{ enabledModuleIds: string[] }>("/api/workspace/modules"),
+    ])
+      .then(([data, modules]) => {
         const perms = data.user.permissions ?? [];
         const allowAll = data.user.sessionRole === "SUPER_ADMIN";
-        const first = FINANCE_NAV.find((item) => allowAll || perms.includes(item.permission));
+        const workspaceLike = { enabledModules: modules.enabledModuleIds };
+        const first = FINANCE_NAV.find(
+          (item) =>
+            (allowAll || perms.includes(item.permission)) &&
+            navHrefAllowed(item.href, workspaceLike, perms, allowAll),
+        );
         router.replace(first?.href ?? "/dashboard");
       })
       .catch(() => router.replace("/dashboard"));

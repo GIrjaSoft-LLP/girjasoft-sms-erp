@@ -5,6 +5,7 @@ import {
   FeeStructure,
   InventoryItem,
   LeaveType,
+  Parent,
   SchoolClass,
   Section,
   Staff,
@@ -61,8 +62,9 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
   const classIds = collect(items, "classId");
   const sectionIds = collect(items, "sectionId");
   const feeStructureIds = collect(items, "feeStructureId");
+  const parentIds = resourceKey === "students" ? collect(items, "parentId") : [];
 
-  const [students, studentFees, parentUsers, teacherUsers] = await Promise.all([
+  const [students, studentFees, parentUsers, teacherUsers, parentsForStudents] = await Promise.all([
     studentIds.length
       ? Student.find({ _id: { $in: studentIds } }).select("name admissionNumber classId sectionId").lean()
       : [],
@@ -78,6 +80,9 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       ? User.find({ linkedTeacherId: { $in: items.map((item) => item._id) } }).select(
           "username email status linkedTeacherId",
         ).lean()
+      : [],
+    resourceKey === "students" && parentIds.length
+      ? Parent.find({ _id: { $in: parentIds } }).select("name phone").lean()
       : [],
   ]);
 
@@ -144,6 +149,28 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
   const teacherUserMap = new Map(
     teacherUsers.map((user) => [String(user.linkedTeacherId), user]),
   );
+  const parentRecordMap = asMap(parentsForStudents);
+
+  let sectionStudentCounts = new Map<string, number>();
+  if (resourceKey === "sections" && items.length) {
+    const workspaceId = refId(items[0].workspaceId);
+    const sectionObjectIds = items
+      .map((item) => refId(item._id))
+      .filter(Boolean)
+      .map((id) => new mongoose.Types.ObjectId(id));
+    if (workspaceId && sectionObjectIds.length) {
+      const counts = await Student.aggregate<{ _id: mongoose.Types.ObjectId; count: number }>([
+        {
+          $match: {
+            workspaceId: new mongoose.Types.ObjectId(workspaceId),
+            sectionId: { $in: sectionObjectIds },
+          },
+        },
+        { $group: { _id: "$sectionId", count: { $sum: 1 } } },
+      ]);
+      sectionStudentCounts = new Map(counts.map((row) => [String(row._id), row.count]));
+    }
+  }
 
   return items.map((item) => {
     const student = studentMap.get(refId(item.studentId));
@@ -170,6 +197,7 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       .filter(Boolean)
       .map((row) => `${row?.name ?? ""} (${row?.admissionNumber ?? ""})`)
       .join(", ");
+    const parentRecord = parentRecordMap.get(refId(item.parentId));
 
     return {
       ...item,
@@ -194,6 +222,24 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       routeName: route?.name ?? "",
       vehicleNumber: vehicle?.number ?? "",
       itemName: inventoryItem?.name ?? "",
+      ...(resourceKey === "students"
+        ? {
+            studentCode: String(item.admissionNumber ?? ""),
+            parentName: parentRecord?.name ?? "",
+            parentMobile: parentRecord?.phone ?? "",
+          }
+        : {}),
+      ...(resourceKey === "sections"
+        ? (() => {
+            const enrolled = sectionStudentCounts.get(String(item._id)) ?? 0;
+            const capacity = Number(item.capacity ?? 0);
+            return {
+              classOrder: item.classOrder ?? "",
+              studentCount: enrolled,
+              availableSeats: Math.max(0, capacity - enrolled),
+            };
+          })()
+        : {}),
       ...(resourceKey === "parents"
         ? {
             linkedStudents,

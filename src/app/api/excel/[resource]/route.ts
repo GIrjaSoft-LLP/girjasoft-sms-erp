@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import { EXCEL_UNIQUE_KEYS, isExcelModule } from "@/config/excel";
+import { isAcademicExcelResource } from "@/config/excel-academic";
 import { RESOURCES } from "@/config/resources";
 import {
   ApiError,
@@ -11,6 +12,14 @@ import {
 } from "@/lib/api/guards";
 import { getResource } from "@/lib/api/tenant-resource";
 import { logWorkspace } from "@/lib/audit";
+import {
+  academicHeaders,
+  academicSampleRow,
+  buildClassLookupMap,
+  exportAcademicRows,
+  formatImportSummary,
+  importAcademicRow,
+} from "@/lib/excel-academic";
 import { cell, excelFileResponse, readExcelObjects, rowsToExcelBuffer } from "@/lib/excel";
 import { ensureParentLogin, parseObjectIds, syncParentStudents } from "@/lib/parent-account";
 import { ensureTeacherLogin } from "@/lib/teacher-account";
@@ -19,10 +28,16 @@ import { Parent, Teacher } from "@/models/workspace";
 type Ctx = { params: Promise<{ resource: string }> };
 
 function headersFor(resourceKey: string) {
+  if (isAcademicExcelResource(resourceKey)) {
+    return academicHeaders(resourceKey);
+  }
   return RESOURCES[resourceKey].fields.map((field) => field.name);
 }
 
 function sampleRow(resourceKey: string) {
+  if (isAcademicExcelResource(resourceKey)) {
+    return academicSampleRow(resourceKey);
+  }
   const row: Record<string, unknown> = {};
   for (const field of RESOURCES[resourceKey].fields) {
     if (field.options?.length) {
@@ -87,18 +102,18 @@ export async function GET(request: Request, ctx: Ctx) {
     const headers = headersFor(resourceKey);
     const records = template
       ? [sampleRow(resourceKey)]
-      : ((await resource.model
-          .find(applyRecordVisibility(tenant, resourceKey, scopedQuery(tenant.workspaceId)))
-          .sort({ createdAt: -1 })
-          .limit(10000)
-          .lean()) as Array<Record<string, unknown>>);
+      : isAcademicExcelResource(resourceKey)
+        ? await exportAcademicRows(resourceKey, tenant.workspaceId)
+        : ((await resource.model
+            .find(applyRecordVisibility(tenant, resourceKey, scopedQuery(tenant.workspaceId)))
+            .sort({ createdAt: -1 })
+            .limit(10000)
+            .lean()) as Array<Record<string, unknown>>);
 
     const buffer = await rowsToExcelBuffer(resource.label, headers, records);
     return excelFileResponse(
       buffer,
-      template
-        ? `girjasoft-${resourceKey}-template.xlsx`
-        : `girjasoft-${resourceKey}.xlsx`,
+      template ? `girjasoft-${resourceKey}-template.xlsx` : `girjasoft-${resourceKey}.xlsx`,
     );
   } catch (error) {
     return errorResponse(error);
@@ -122,6 +137,42 @@ export async function POST(request: Request, ctx: Ctx) {
     const file = form.get("file");
     if (!(file instanceof File)) throw new ApiError(400, "Excel file is required.");
     const rows = await readExcelObjects(Buffer.from(await file.arrayBuffer()));
+
+    if (isAcademicExcelResource(resourceKey)) {
+      const lookup = await buildClassLookupMap(tenant.workspaceId);
+      let created = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const [index, row] of rows.entries()) {
+        try {
+          const result = await importAcademicRow(resourceKey, tenant.workspaceId, row, lookup);
+          if (result.action === "created") created += 1;
+          else skipped += 1;
+        } catch (err) {
+          errors.push(`Row ${index + 2}: ${err instanceof Error ? err.message : "failed"}`);
+        }
+      }
+
+      const errorReport = formatImportSummary(rows.length, created, skipped, errors);
+      await logWorkspace(
+        tenant.session,
+        tenant.workspaceId,
+        `${resourceKey.toUpperCase()}_IMPORTED`,
+        resourceKey,
+        "",
+        { created, skipped, failed: errors.length },
+      );
+      return Response.json({
+        total: rows.length,
+        created,
+        skipped,
+        failed: errors.length,
+        errors,
+        errorReport,
+      });
+    }
+
     const required = RESOURCES[resourceKey].fields.filter((field) => field.required).map((field) => field.name);
 
     let created = 0;
@@ -198,7 +249,14 @@ export async function POST(request: Request, ctx: Ctx) {
       "",
       { created, skipped },
     );
-    return Response.json({ created, skipped, errors });
+    return Response.json({
+      total: rows.length,
+      created,
+      skipped,
+      failed: errors.length,
+      errors,
+      errorReport: formatImportSummary(rows.length, created, skipped, errors),
+    });
   } catch (error) {
     return errorResponse(error);
   }

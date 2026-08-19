@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { z } from "zod";
 import { SUPER_ADMIN_EMAIL } from "@/config/branding";
-import { ApiError, errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
 import { Workspace } from "@/models/platform";
@@ -12,7 +12,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: Request, ctx: Ctx) {
   try {
-    await requireSuperAdmin();
+    await requirePlatformPerm("platform.workspaces.view");
     const { id } = await ctx.params;
     const workspace = await Workspace.findById(id).lean();
     if (!workspace) throw new ApiError(404, "Workspace not found.");
@@ -28,7 +28,7 @@ export async function GET(_request: Request, ctx: Ctx) {
 
 export async function PATCH(request: Request, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaces.edit");
     const { id } = await ctx.params;
     const body = z
       .object({
@@ -44,13 +44,32 @@ export async function PATCH(request: Request, ctx: Ctx) {
         website: z.string().optional(),
         logo: z.string().optional(),
         academicSession: z.string().optional(),
+        validityTill: z.string().optional(),
         status: z.enum(["ACTIVE", "SUSPENDED", "DISABLED", "ARCHIVED"]).optional(),
       })
       .parse(await request.json());
-    const workspace = await Workspace.findByIdAndUpdate(id, body, { new: true });
-    if (!workspace) throw new ApiError(404, "Workspace not found.");
+    const current = await Workspace.findById(id);
+    if (!current) throw new ApiError(404, "Workspace not found.");
+    const previousValidity = current.validityTill;
+    if (body.validityTill) {
+      current.validityTill = new Date(body.validityTill);
+    }
+    Object.assign(current, { ...body, validityTill: current.validityTill });
+    await current.save();
+    if (body.validityTill) {
+      await logPlatform(
+        session,
+        "WORKSPACE_VALIDITY_CHANGED",
+        {
+          code: current.code,
+          previous: previousValidity ? new Date(previousValidity).toISOString().slice(0, 10) : "",
+          next: current.validityTill ? new Date(current.validityTill).toISOString().slice(0, 10) : "",
+        },
+        id,
+      );
+    }
     await logPlatform(session, "WORKSPACE_UPDATED", body, id);
-    return json({ item: workspace });
+    return json({ item: current });
   } catch (error) {
     return errorResponse(error);
   }
@@ -58,7 +77,7 @@ export async function PATCH(request: Request, ctx: Ctx) {
 
 export async function DELETE(_request: Request, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaces.delete");
     const { id } = await ctx.params;
     const workspace = await Workspace.findByIdAndUpdate(
       id,
@@ -79,7 +98,7 @@ const resetSchema = z.object({
 
 export async function PUT(request: Request, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.workspaces.manage");
     const { id } = await ctx.params;
     const url = new URL(request.url);
     const action = url.searchParams.get("action");

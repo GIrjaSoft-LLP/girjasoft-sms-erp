@@ -11,17 +11,29 @@ const studentSchema = new Schema(
     ...tenantFields(),
     admissionNumber: { type: String, required: true, trim: true },
     name: { type: String, required: true, trim: true },
+    firstName: { type: String, default: "" },
+    middleName: { type: String, default: "" },
+    lastName: { type: String, default: "" },
     gender: { type: String, default: "" },
     dateOfBirth: { type: String, default: "" },
+    bloodGroup: { type: String, default: "" },
+    aadhaar: { type: String, default: "" },
+    nationality: { type: String, default: "" },
+    religion: { type: String, default: "" },
+    category: { type: String, default: "" },
+    motherTongue: { type: String, default: "" },
     classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null, index: true },
     sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null, index: true },
     parentId: { type: Schema.Types.ObjectId, ref: "Parent", default: null },
     phone: { type: String, default: "" },
     email: { type: String, default: "" },
     address: { type: String, default: "" },
+    emergencyContact: { type: String, default: "" },
+    emergencyPhone: { type: String, default: "" },
     photo: { type: String, default: "" },
     status: { type: String, default: "ACTIVE", index: true },
     academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+    currentEnrollmentId: { type: Schema.Types.ObjectId, ref: "StudentEnrollment", default: null },
   },
   { timestamps: true },
 );
@@ -93,6 +105,7 @@ const sectionSchema = new Schema(
     ...tenantFields(),
     name: { type: String, required: true },
     classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
+    classTeacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
     capacity: { type: Number, default: 40 },
   },
   { timestamps: true },
@@ -105,11 +118,12 @@ const subjectSchema = new Schema(
     ...tenantFields(),
     name: { type: String, required: true },
     code: { type: String, required: true },
-    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
   },
   { timestamps: true },
 );
-subjectSchema.index({ workspaceId: 1, code: 1 }, { unique: true });
+subjectSchema.index({ workspaceId: 1, classId: 1, code: 1 }, { unique: true });
+subjectSchema.index({ workspaceId: 1, classId: 1, name: 1 }, { unique: true });
 
 const academicSessionSchema = new Schema(
   {
@@ -122,23 +136,125 @@ const academicSessionSchema = new Schema(
   { timestamps: true },
 );
 academicSessionSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
-academicSessionSchema.index({ workspaceId: 1, academicSessionId: 1 });
+academicSessionSchema.index({ workspaceId: 1, isCurrent: 1 });
+
+const studentEnrollmentSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true, index: true },
+    academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", required: true, index: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", required: true },
+    rollNumber: { type: String, default: "" },
+    promotionStatus: {
+      type: String,
+      enum: ["ENROLLED", "PENDING", "PROMOTED", "NOT_PROMOTED", "TRANSFERRED", "GRADUATED", "ARCHIVED"],
+      default: "ENROLLED",
+      index: true,
+    },
+    isCurrent: { type: Boolean, default: false, index: true },
+    status: { type: String, enum: ["ACTIVE", "COMPLETED", "WITHDRAWN"], default: "ACTIVE" },
+  },
+  { timestamps: true },
+);
+studentEnrollmentSchema.index({ workspaceId: 1, studentId: 1, academicSessionId: 1 }, { unique: true });
+studentEnrollmentSchema.index({ workspaceId: 1, studentId: 1, isCurrent: 1 });
+studentEnrollmentSchema.index({ workspaceId: 1, academicSessionId: 1, classId: 1, sectionId: 1 });
+
+const enrollmentAuditSchema = new Schema(
+  {
+    ...tenantFields(),
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true, index: true },
+    enrollmentId: { type: Schema.Types.ObjectId, ref: "StudentEnrollment", default: null },
+    action: { type: String, required: true },
+    oldAcademicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+    newAcademicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+    oldClassId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    newClassId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
+    oldSectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    newSectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    oldRollNumber: { type: String, default: "" },
+    newRollNumber: { type: String, default: "" },
+    oldPromotionStatus: { type: String, default: "" },
+    newPromotionStatus: { type: String, default: "" },
+    reason: { type: String, default: "" },
+    changedBy: { type: String, default: "" },
+    changedByEmail: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+enrollmentAuditSchema.index({ workspaceId: 1, studentId: 1, createdAt: -1 });
 
 const attendanceSchema = new Schema(
   {
     ...tenantFields(),
+    academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null, index: true },
     studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
     classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
     sectionId: { type: Schema.Types.ObjectId, ref: "Section", default: null },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    sessionId: { type: Schema.Types.ObjectId, ref: "AttendanceSession", default: null, index: true },
     date: { type: String, required: true },
+    attendanceType: { type: String, enum: ["CLASS", "SUBJECT"], default: "CLASS", index: true },
     status: { type: String, enum: ["PRESENT", "ABSENT", "LATE", "LEAVE"], required: true },
     remarks: { type: String, default: "" },
+    markedBy: { type: String, default: "" },
+    markedAt: { type: Date, default: null },
   },
   { timestamps: true },
 );
 attendanceSchema.index({ workspaceId: 1, date: 1 });
-attendanceSchema.index({ workspaceId: 1, studentId: 1, date: 1 }, { unique: true });
+attendanceSchema.index(
+  { workspaceId: 1, studentId: 1, date: 1, attendanceType: 1, subjectId: 1 },
+  { unique: true },
+);
 attendanceSchema.index({ workspaceId: 1, classId: 1, sectionId: 1, date: 1 });
+attendanceSchema.index({ workspaceId: 1, subjectId: 1, date: 1 });
+
+const attendanceSessionSchema = new Schema(
+  {
+    ...tenantFields(),
+    academicSessionId: { type: Schema.Types.ObjectId, ref: "AcademicSession", default: null },
+    date: { type: String, required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true },
+    sectionId: { type: Schema.Types.ObjectId, ref: "Section", required: true },
+    subjectId: { type: Schema.Types.ObjectId, ref: "Subject", default: null },
+    attendanceType: { type: String, enum: ["CLASS", "SUBJECT"], default: "CLASS" },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
+    status: { type: String, enum: ["DRAFT", "SUBMITTED"], default: "SUBMITTED" },
+    markedBy: { type: String, default: "" },
+    markedByEmail: { type: String, default: "" },
+    markedAt: { type: Date, default: null },
+    totalStudents: { type: Number, default: 0 },
+    presentCount: { type: Number, default: 0 },
+    absentCount: { type: Number, default: 0 },
+    lateCount: { type: Number, default: 0 },
+    leaveCount: { type: Number, default: 0 },
+  },
+  { timestamps: true },
+);
+attendanceSessionSchema.index(
+  { workspaceId: 1, academicSessionId: 1, date: 1, classId: 1, sectionId: 1, attendanceType: 1, subjectId: 1 },
+  { unique: true },
+);
+attendanceSessionSchema.index({ workspaceId: 1, date: 1 });
+
+const attendanceAuditSchema = new Schema(
+  {
+    ...tenantFields(),
+    attendanceId: { type: Schema.Types.ObjectId, ref: "Attendance", default: null },
+    sessionId: { type: Schema.Types.ObjectId, ref: "AttendanceSession", default: null },
+    studentId: { type: Schema.Types.ObjectId, ref: "Student", default: null },
+    previousStatus: { type: String, default: "" },
+    newStatus: { type: String, default: "" },
+    reason: { type: String, default: "" },
+    changedBy: { type: String, default: "" },
+    changedByEmail: { type: String, default: "" },
+  },
+  { timestamps: true },
+);
+attendanceAuditSchema.index({ workspaceId: 1, sessionId: 1 });
+attendanceAuditSchema.index({ workspaceId: 1, studentId: 1 });
 
 const teacherAttendanceSchema = new Schema(
   {
@@ -493,6 +609,7 @@ const settingsSchema = new Schema(
     examination: { type: Schema.Types.Mixed, default: {} },
     communication: { type: Schema.Types.Mixed, default: {} },
     theme: { type: Schema.Types.Mixed, default: {} },
+    admission: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
 );
@@ -516,7 +633,11 @@ export const SchoolClass = model("SchoolClass", classSchema, "classes");
 export const Section = model("Section", sectionSchema, "sections");
 export const Subject = model("Subject", subjectSchema, "subjects");
 export const AcademicSession = model("AcademicSession", academicSessionSchema, "academicSessions");
+export const StudentEnrollment = model("StudentEnrollment", studentEnrollmentSchema, "studentEnrollments");
+export const EnrollmentAudit = model("EnrollmentAudit", enrollmentAuditSchema, "enrollmentAudits");
 export const Attendance = model("Attendance", attendanceSchema, "attendance");
+export const AttendanceSession = model("AttendanceSession", attendanceSessionSchema, "attendanceSessions");
+export const AttendanceAudit = model("AttendanceAudit", attendanceAuditSchema, "attendanceAudits");
 export const TeacherAttendance = model("TeacherAttendance", teacherAttendanceSchema, "teacherAttendance");
 export const Timetable = model("Timetable", timetableSchema, "timetables");
 export const Homework = model("Homework", homeworkSchema, "homework");

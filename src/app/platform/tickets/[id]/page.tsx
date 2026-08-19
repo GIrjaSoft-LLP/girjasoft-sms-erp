@@ -41,6 +41,7 @@ export default function PlatformTicketDetailPage() {
   const params = useParams<{ id: string }>();
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [admins, setAdmins] = useState<Array<{ id: string; name: string; email: string }>>([]);
+  const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState("");
   const [status, setStatus] = useState("");
   const [priority, setPriority] = useState("");
@@ -51,11 +52,13 @@ export default function PlatformTicketDetailPage() {
   const [file, setFile] = useState<File | null>(null);
 
   async function load() {
-    const data = await api<{ item: Ticket; admins: Array<{ id: string; name: string; email: string }> }>(
-      `/api/platform/tickets/${params.id}`,
-    );
+    const [data, me] = await Promise.all([
+      api<{ item: Ticket; admins: Array<{ id: string; name: string; email: string }> }>(`/api/platform/tickets/${params.id}`),
+      api<{ user: { permissions?: string[] } }>("/api/auth/me"),
+    ]);
     setTicket(data.item);
     setAdmins(data.admins);
+    setPermissions(me.user.permissions ?? []);
     setStatus(data.item.status);
     setPriority(data.item.priority);
     setAssignedToId(data.item.assignedToId ?? "");
@@ -100,6 +103,9 @@ export default function PlatformTicketDetailPage() {
 
   if (!ticket && !error) return <p>Loading ticket…</p>;
 
+  const canEdit = permissions.includes("platform.tickets.edit");
+  const canAssign = permissions.includes("platform.tickets.assign");
+
   return (
     <div className="space-y-6">
       <Link href="/platform/tickets" className="text-sm text-[#4c7eff]">
@@ -121,10 +127,11 @@ export default function PlatformTicketDetailPage() {
               </a>
             ))}
           </div>
-          <div className="gs-card grid gap-3 p-5 md:grid-cols-2">
-            <label className="text-sm">
-              Status
-              <select className="gs-input mt-1" value={status} onChange={(e) => setStatus(e.target.value)}>
+          {canEdit || canAssign ? (
+            <div className="gs-card grid gap-3 p-5 md:grid-cols-2">
+              <label className="text-sm">
+                Status
+                <select className="gs-input mt-1" value={status} disabled={!canEdit} onChange={(e) => setStatus(e.target.value)}>
                 <option value="OPEN">Open</option>
                 <option value="ASSIGNED">Assigned</option>
                 <option value="IN_PROGRESS">In Progress</option>
@@ -135,7 +142,7 @@ export default function PlatformTicketDetailPage() {
             </label>
             <label className="text-sm">
               Priority
-              <select className="gs-input mt-1" value={priority} onChange={(e) => setPriority(e.target.value)}>
+              <select className="gs-input mt-1" value={priority} disabled={!canEdit} onChange={(e) => setPriority(e.target.value)}>
                 <option value="LOW">Low</option>
                 <option value="MEDIUM">Medium</option>
                 <option value="HIGH">High</option>
@@ -144,7 +151,7 @@ export default function PlatformTicketDetailPage() {
             </label>
             <label className="text-sm">
               Assign to
-              <select className="gs-input mt-1" value={assignedToId} onChange={(e) => setAssignedToId(e.target.value)}>
+              <select className="gs-input mt-1" value={assignedToId} disabled={!canAssign} onChange={(e) => setAssignedToId(e.target.value)}>
                 <option value="">Unassigned</option>
                 {admins.map((admin) => (
                   <option key={admin.id} value={admin.id}>
@@ -155,14 +162,17 @@ export default function PlatformTicketDetailPage() {
             </label>
             <label className="text-sm md:col-span-2">
               Resolution
-              <textarea className="gs-input mt-1 min-h-20" value={resolution} onChange={(e) => setResolution(e.target.value)} />
+              <textarea className="gs-input mt-1 min-h-20" value={resolution} disabled={!canEdit} onChange={(e) => setResolution(e.target.value)} />
             </label>
-            <div>
-              <button type="button" className="gs-btn px-4 py-2" onClick={() => void save()}>
-                Save changes
-              </button>
-            </div>
+            {canEdit ? (
+              <div>
+                <button type="button" className="gs-btn px-4 py-2" onClick={() => void save()}>
+                  Save changes
+                </button>
+              </div>
+            ) : null}
           </div>
+          ) : null}
           <div className="gs-card p-5 space-y-3">
             <h2 className="font-semibold">Conversation</h2>
             {(ticket.messages ?? []).map((message, index) => (
@@ -179,15 +189,17 @@ export default function PlatformTicketDetailPage() {
                 <p className="mt-1">{message.body}</p>
               </div>
             ))}
-            <form onSubmit={(e) => void send(e)} className="space-y-2">
-              <textarea className="gs-input min-h-24" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Public reply or internal note" />
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
-                Internal note (not visible to the school)
-              </label>
-              <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
-              <button className="gs-btn px-4 py-2">Send</button>
-            </form>
+            {canEdit ? (
+              <form onSubmit={(e) => void send(e)} className="space-y-2">
+                <textarea className="gs-input min-h-24" value={reply} onChange={(e) => setReply(e.target.value)} placeholder="Public reply or internal note" />
+                <label className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={internal} onChange={(e) => setInternal(e.target.checked)} />
+                  Internal note (not visible to the school)
+                </label>
+                <input type="file" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+                <button className="gs-btn px-4 py-2">Send</button>
+              </form>
+            ) : null}
           </div>
           <div className="gs-card p-5 text-sm">
             <h2 className="mb-2 font-semibold">History</h2>

@@ -5,6 +5,12 @@ import { useRouter } from "next/navigation";
 import { DEFAULT_USER_PASSWORD } from "@/config/defaults";
 import { api } from "@/lib/client";
 
+function defaultValidityTill() {
+  const date = new Date();
+  date.setFullYear(date.getFullYear() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
 const empty = {
   name: "",
   code: "",
@@ -20,6 +26,7 @@ const empty = {
   logo: "",
   academicSession: "",
   status: "ACTIVE",
+  validityTill: defaultValidityTill(),
   adminName: "",
   adminEmail: "",
   adminPhone: "",
@@ -61,6 +68,7 @@ export default function CreateWorkspacePage() {
           website: form.website,
           logo: form.logo,
           academicSession: form.academicSession,
+          validityTill: form.validityTill,
           status: form.status,
           admin: {
             name: form.adminName,
@@ -95,7 +103,7 @@ export default function CreateWorkspacePage() {
 
   return (
     <form onSubmit={onSubmit} className="space-y-6 max-w-4xl">
-      <h1 className="text-2xl font-semibold">Create Workspace</h1>
+      <h1 className="text-2xl font-semibold text-[#0b1b3a]">Create Workspace</h1>
       <div className="gs-card p-5 grid md:grid-cols-2 gap-3">
         {fields.map(([key, label]) => (
           <label key={key} className="text-sm">
@@ -103,6 +111,10 @@ export default function CreateWorkspacePage() {
             <input className="gs-input mt-1" value={form[key]} onChange={(e) => set(key, e.target.value)} required={["name", "schoolName", "email"].includes(key)} />
           </label>
         ))}
+        <label className="text-sm">
+          Validity Till
+          <input className="gs-input mt-1" type="date" value={form.validityTill} onChange={(e) => set("validityTill", e.target.value)} required />
+        </label>
         <label className="text-sm">
           Workspace Status
           <select className="gs-input mt-1" value={form.status} onChange={(e) => set("status", e.target.value)}>

@@ -2,6 +2,15 @@
 
 import { useRef, useState } from "react";
 
+type ImportResult = {
+  total?: number;
+  created?: number;
+  skipped?: number;
+  failed?: number;
+  errors?: string[];
+  errorReport?: string;
+};
+
 type Props = {
   exportUrl: string;
   importUrl: string;
@@ -31,21 +40,35 @@ export function ExcelActions({ exportUrl, importUrl, templateUrl, onImported }: 
   const inputRef = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [errorReport, setErrorReport] = useState("");
   const [busy, setBusy] = useState(false);
+
+  function downloadErrorReport(report: string, filename: string) {
+    const blob = new Blob([report], { type: "text/plain;charset=utf-8" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(href);
+  }
 
   async function upload(file: File) {
     setBusy(true);
     setError("");
     setMessage("");
+    setErrorReport("");
     try {
       const body = new FormData();
       body.append("file", file);
       const response = await fetch(importUrl, { method: "POST", body });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Import failed");
+      const data = (await response.json()) as ImportResult;
+      if (!response.ok) throw new Error((data as { error?: string }).error || "Import failed");
+      const failed = data.failed ?? data.errors?.length ?? 0;
       setMessage(
-        `Imported ${data.created ?? 0} row(s). Skipped ${data.skipped ?? 0}. Errors: ${data.errors?.length ?? 0}.`,
+        `Total: ${data.total ?? 0} · Imported: ${data.created ?? 0} · Skipped: ${data.skipped ?? 0} · Failed: ${failed}`,
       );
+      setErrorReport(data.errorReport ?? "");
       await onImported();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Import failed");
@@ -90,6 +113,15 @@ export function ExcelActions({ exportUrl, importUrl, templateUrl, onImported }: 
         }}
       />
       {message ? <span className="text-sm text-emerald-700">{message}</span> : null}
+      {errorReport ? (
+        <button
+          type="button"
+          className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          onClick={() => downloadErrorReport(errorReport, "import-errors.txt")}
+        >
+          Download error report
+        </button>
+      ) : null}
       {error ? <span className="text-sm text-red-600">{error}</span> : null}
     </div>
   );

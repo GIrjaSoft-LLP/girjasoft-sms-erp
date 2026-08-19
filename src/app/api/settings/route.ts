@@ -33,6 +33,7 @@ export async function PATCH(request: Request) {
         attendance: z.record(z.string(), z.unknown()).optional(),
         examination: z.record(z.string(), z.unknown()).optional(),
         communication: z.record(z.string(), z.unknown()).optional(),
+        admission: z.record(z.string(), z.unknown()).optional(),
         workspace: z
           .object({
             schoolName: z.string().optional(),

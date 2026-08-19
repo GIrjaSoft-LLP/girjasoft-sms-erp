@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/config/tickets";
-import { ApiError, errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
+import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { notifySchoolUser } from "@/lib/ticket-notify";
 import { SupportTicket } from "@/models/support";
@@ -10,7 +10,7 @@ type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_request: NextRequest, ctx: Ctx) {
   try {
-    await requireSuperAdmin();
+    await requirePlatformPerm("platform.tickets.view");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
     if (!ticket) throw new ApiError(404, "Ticket not found.");
@@ -30,7 +30,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
 
 export async function PATCH(request: NextRequest, ctx: Ctx) {
   try {
-    const session = await requireSuperAdmin();
+    const session = await requirePlatformPerm("platform.tickets.edit");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
     if (!ticket) throw new ApiError(404, "Ticket not found.");

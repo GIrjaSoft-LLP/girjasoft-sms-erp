@@ -22,7 +22,10 @@ const workspaceSchema = new Schema(
       index: true,
     },
     lastActivityAt: { type: Date, default: Date.now },
+    validityTill: { type: Date, default: null },
     adminUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    enabledModules: { type: [String], default: [] },
+    moduleConfigVersion: { type: Number, default: 0 },
   },
   { timestamps: true },
 );
@@ -35,7 +38,9 @@ const platformAdminSchema = new Schema(
     username: { type: String, required: true, unique: true, lowercase: true, trim: true },
     name: { type: String, required: true },
     passwordHash: { type: String, required: true, select: false },
-    role: { type: String, enum: ["SUPER_ADMIN"], default: "SUPER_ADMIN" },
+    role: { type: String, default: "ADMIN", index: true },
+    phone: { type: String, default: "" },
+    photo: { type: String, default: "" },
     accountType: { type: String, enum: ["PLATFORM"], default: "PLATFORM" },
     workspaceId: { type: Schema.Types.ObjectId, default: null },
     status: { type: String, enum: ["ACTIVE", "DISABLED"], default: "ACTIVE" },
@@ -66,14 +71,44 @@ const platformAuditLogSchema = new Schema(
 
 platformAuditLogSchema.index({ createdAt: -1 });
 
+const platformRoleSchema = new Schema(
+  {
+    name: { type: String, required: true, trim: true },
+    slug: { type: String, required: true, trim: true, lowercase: true, unique: true },
+    description: { type: String, default: "" },
+    permissions: [{ type: String }],
+    isSystem: { type: Boolean, default: false },
+    status: { type: String, enum: ["ACTIVE", "DISABLED"], default: "ACTIVE" },
+  },
+  { timestamps: true },
+);
+
 export const Workspace =
   mongoose.models.Workspace || mongoose.model("Workspace", workspaceSchema);
 export const PlatformAdmin =
   mongoose.models.PlatformAdmin ||
   mongoose.model("PlatformAdmin", platformAdminSchema, "platformAdmins");
+export const PlatformRole =
+  mongoose.models.PlatformRole || mongoose.model("PlatformRole", platformRoleSchema, "platformRoles");
 export const PlatformSettings =
   mongoose.models.PlatformSettings ||
   mongoose.model("PlatformSettings", platformSettingsSchema, "platformSettings");
 export const PlatformAuditLog =
   mongoose.models.PlatformAuditLog ||
   mongoose.model("PlatformAuditLog", platformAuditLogSchema, "platformAuditLogs");
+
+if (!Workspace.schema.path("validityTill")) {
+  Workspace.schema.add({ validityTill: { type: Date, default: null } });
+}
+if (!Workspace.schema.path("enabledModules")) {
+  Workspace.schema.add({ enabledModules: { type: [String], default: [] } });
+}
+if (!Workspace.schema.path("moduleConfigVersion")) {
+  Workspace.schema.add({ moduleConfigVersion: { type: Number, default: 0 } });
+}
+if (!PlatformAdmin.schema.path("photo")) {
+  PlatformAdmin.schema.add({ photo: { type: String, default: "" } });
+}
+if (!PlatformAdmin.schema.path("phone")) {
+  PlatformAdmin.schema.add({ phone: { type: String, default: "" } });
+}

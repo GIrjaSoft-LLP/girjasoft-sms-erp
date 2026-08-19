@@ -15,7 +15,15 @@ import {
 import { RESOURCES } from "@/config/resources";
 import { api } from "@/lib/client";
 
-type LookupRow = { _id: string; name: string; classId?: string; className?: string; admissionNumber?: string; sectionName?: string };
+type LookupRow = {
+  _id: string;
+  name: string;
+  classId?: string;
+  className?: string;
+  admissionNumber?: string;
+  sectionName?: string;
+  numericName?: number;
+};
 
 function Avatar({ id, photo, name, kind }: { id: string; photo?: unknown; name?: unknown; kind: string }) {
   const [failed, setFailed] = useState(false);
@@ -39,7 +47,13 @@ function Avatar({ id, photo, name, kind }: { id: string; photo?: unknown; name?:
   );
 }
 
-export function ModuleManager({ resourceKey }: { resourceKey: string }) {
+export function ModuleManager({
+  resourceKey,
+  viewPathPrefix,
+}: {
+  resourceKey: string;
+  viewPathPrefix?: string;
+}) {
   const resource = RESOURCES[resourceKey];
   const filters = RESOURCE_FILTERS[resourceKey] ?? [];
   const [items, setItems] = useState<Record<string, unknown>[]>([]);
@@ -69,6 +83,7 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
   const [removePhoto, setRemovePhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
   const hasIdCards = resourceKey === "students" || resourceKey === "teachers";
+  const usesClassPicker = resourceKey === "sections" || resourceKey === "subjects";
 
   const needsLookups = filters.includes("classId") || filters.includes("sectionId");
 
@@ -142,6 +157,9 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
     const next: Record<string, string> = {};
     for (const field of resource.fields) {
       next[field.name] = String(item[field.name] ?? "");
+    }
+    if ((resourceKey === "sections" || resourceKey === "subjects") && !next.classOrder && item.classOrder != null) {
+      next.classOrder = String(item.classOrder);
     }
     setEditing(String(item._id));
     setForm(next);
@@ -248,7 +266,7 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
           <p className="text-sm text-slate-500">
             Workspace-scoped records stored in MongoDB.
             {isExcelModule(resourceKey)
-              ? " Download the template, fill rows, then Import Excel. For linked records, export related sections first and paste IDs."
+              ? " Download the template, fill rows using Class Name (not Class ID), then Import Excel."
               : ""}
           </p>
         </div>
@@ -422,6 +440,11 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
                   </td>
                 ))}
                 <td className="p-3 space-x-2">
+                  {viewPathPrefix && resourceKey === "students" ? (
+                    <a className="text-[#4c7eff]" href={`${viewPathPrefix}/${String(item._id)}`}>
+                      View
+                    </a>
+                  ) : null}
                   <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
                     Edit
                   </button>
@@ -499,7 +522,32 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
         <RecordDialog title={editing ? `Edit ${resource.label}` : `Create ${resource.label}`} onClose={closeDialog}>
           <form onSubmit={save} className="grid md:grid-cols-2 gap-3">
             {resource.fields.map((field) =>
-              resourceKey === "parents" && field.name === "studentIds" ? (
+              usesClassPicker && field.name === "classId" ? (
+                <label key={field.name} className="text-sm md:col-span-2">
+                  <span className="block mb-1 text-slate-600">Class</span>
+                  <select
+                    className="gs-input"
+                    value={form.classId ?? ""}
+                    onChange={(e) => {
+                      const selected = classes.find((row) => row._id === e.target.value);
+                      setForm((f) => ({
+                        ...f,
+                        classId: e.target.value,
+                        classOrder:
+                          selected?.numericName != null ? String(selected.numericName) : (f.classOrder ?? ""),
+                      }));
+                    }}
+                    required
+                  >
+                    <option value="">Select Class</option>
+                    {classes.map((row) => (
+                      <option key={row._id} value={row._id}>
+                        {row.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : resourceKey === "parents" && field.name === "studentIds" ? (
                 <label key={field.name} className="text-sm md:col-span-2">
                   <span className="block mb-1 text-slate-600">Linked students</span>
                   <div className="max-h-48 overflow-y-auto rounded-lg border border-slate-200 p-2 space-y-1">
@@ -552,6 +600,14 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
                   <input
                     className="gs-input"
                     type={field.type === "number" ? "number" : field.type === "date" ? "date" : "text"}
+                    min={
+                      resourceKey === "sections" && field.name === "capacity"
+                        ? 1
+                        : usesClassPicker && field.name === "classOrder"
+                          ? 0
+                          : undefined
+                    }
+                    step={resourceKey === "sections" && field.name === "capacity" ? 1 : undefined}
                     value={form[field.name] ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, [field.name]: e.target.value }))}
                     required={field.required}
@@ -578,7 +634,19 @@ export function ModuleManager({ resourceKey }: { resourceKey: string }) {
               <button type="button" className="px-3 py-2 text-sm text-slate-600" onClick={closeDialog}>
                 Cancel
               </button>
-              <button className="gs-btn px-4 py-2">{editing ? "Update" : "Create"}</button>
+              <button className="gs-btn px-4 py-2">
+                {resourceKey === "sections"
+                  ? editing
+                    ? "Update Section"
+                    : "Create Section"
+                  : resourceKey === "subjects"
+                    ? editing
+                      ? "Update Subject"
+                      : "Create Subject"
+                    : editing
+                      ? "Update"
+                      : "Create"}
+              </button>
             </div>
           </form>
         </RecordDialog>

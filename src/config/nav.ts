@@ -22,16 +22,21 @@ export const SETTINGS_NAV: NavLink[] = [
   { href: "/settings/users", label: "Users", permission: "users.view" },
   { href: "/settings/staff", label: "Staff", permission: "staff.view" },
   { href: "/settings/roles", label: "Roles", permission: "roles.view" },
+  { href: "/settings/admission", label: "Admission", permission: "admissions.view" },
+  { href: "/settings/student-info", label: "Student Info", permission: "settings.view" },
   { href: "/settings/theme", label: "Theme", permission: "settings.view" },
 ];
 
 export const WORKSPACE_NAV: NavItem[] = [
-  { href: "/modules/students", label: "Students", permission: "students.view" },
-  { href: "/modules/parents", label: "Parents", permission: "parents.view" },
+  { href: "/dashboard", label: "ERP Modules", permission: "profile.view", exact: true },
+  { href: "/modules/admissions", label: "Admissions", permission: "admissions.view" },
+  {
+    href: "/modules/student-info",
+    label: "Student Info",
+    permission: "students.view",
+    anyOf: ["students.view", "parents.view", "classes.view"],
+  },
   { href: "/modules/teachers", label: "Teachers", permission: "teachers.view" },
-  { href: "/modules/classes", label: "Classes", permission: "classes.view" },
-  { href: "/modules/sections", label: "Sections", permission: "sections.view" },
-  { href: "/modules/subjects", label: "Subjects", permission: "subjects.view" },
   { href: "/modules/attendance", label: "Attendance", permission: "attendance.view" },
   { href: "/modules/timetable", label: "Timetable", permission: "timetable.view" },
   { href: "/modules/homework", label: "Homework", permission: "homework.view" },
@@ -59,11 +64,16 @@ export const WORKSPACE_NAV: NavItem[] = [
 ];
 
 export const PLATFORM_NAV = [
-  { href: "/platform/dashboard", label: "Platform Dashboard" },
-  { href: "/platform/workspaces/new", label: "Create Workspace" },
-  { href: "/platform/users", label: "Workspace Users" },
-  { href: "/platform/tickets", label: "Tickets" },
-  { href: "/platform/audit", label: "Audit Logs" },
+  { href: "/platform/workspaces/new", label: "Create Workspace", permission: "platform.workspaces.create" },
+  { href: "/platform/users", label: "Workspace Users", permission: "platform.workspaceUsers.view" },
+  { href: "/platform/tickets", label: "Tickets", permission: "platform.tickets.view" },
+  { href: "/platform/audit", label: "Audit Logs", permission: "platform.audit.view" },
+];
+
+export const PLATFORM_SETTINGS_NAV = [
+  { href: "/platform/settings", label: "General", permission: "platform.settings.view", exact: true },
+  { href: "/platform/settings/roles", label: "Roles", permission: "platform.roles.view" },
+  { href: "/platform/settings/users", label: "Users", permission: "platform.users.view" },
 ];
 
 export const FINANCE_RESOURCES = ["fees", "payments", "expenses", "payroll"] as const;

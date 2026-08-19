@@ -1,9 +1,9 @@
 import { ApiError, type TenantContext } from "@/lib/api/guards";
 import { hasPermission } from "@/lib/rbac";
-import { isPlatformSuperAdmin } from "@/lib/session";
+import { isPlatformActor } from "@/lib/session";
 
 export function canUseSchoolHelp(ctx: TenantContext) {
-  if (ctx.impersonating && isPlatformSuperAdmin(ctx.session)) return true;
+  if (ctx.impersonating && isPlatformActor(ctx.session)) return true;
   if (hasPermission(ctx.session.permissions, "tickets.view")) return true;
   if (hasPermission(ctx.session.permissions, "tickets.create")) return true;
   if (ctx.session.roleSlugs?.includes("workspace_admin")) return true;
@@ -15,7 +15,7 @@ export function assertSchoolHelp(ctx: TenantContext) {
 }
 
 export function canSetCritical(ctx: TenantContext) {
-  if (ctx.impersonating && isPlatformSuperAdmin(ctx.session)) return true;
+  if (ctx.impersonating && isPlatformActor(ctx.session)) return true;
   return Boolean(ctx.session.roleSlugs?.includes("workspace_admin") || hasPermission(ctx.session.permissions, "settings.edit"));
 }
 

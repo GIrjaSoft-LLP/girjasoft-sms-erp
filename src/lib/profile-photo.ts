@@ -9,13 +9,22 @@ const ALLOWED = new Map([
 
 export const MAX_PHOTO_BYTES = 2 * 1024 * 1024;
 
-export type PhotoKind = "students" | "teachers";
+export type PhotoKind = "students" | "teachers" | "platform";
 
 export function photoDir(workspaceId: string, kind: PhotoKind) {
+  if (kind === "platform") {
+    return path.join(process.cwd(), "uploads", "platform", "photos");
+  }
   return path.join(process.cwd(), "uploads", "workspaces", workspaceId, "photos", kind);
 }
 
 function photoDirs(workspaceId: string, kind: PhotoKind) {
+  if (kind === "platform") {
+    return [
+      photoDir("platform", kind),
+      path.join(process.cwd(), "public", "uploads", "platform", "photos"),
+    ];
+  }
   return [
     photoDir(workspaceId, kind),
     path.join(process.cwd(), "public", "uploads", "workspaces", workspaceId, "photos", kind),
@@ -33,6 +42,7 @@ export function extensionForPhoto(file: File) {
 }
 
 export function publicPhotoPath(workspaceId: string, kind: PhotoKind, recordId: string, ext: string) {
+  if (kind === "platform") return `/uploads/platform/photos/${recordId}.${ext}`;
   return `/uploads/workspaces/${workspaceId}/photos/${kind}/${recordId}.${ext}`;
 }
 

@@ -10,6 +10,7 @@ import {
   assertSameWorkspace,
   json,
   requirePerm,
+  requireModuleEnabled,
   requireWorkspaceContext,
   scopedQuery,
 } from "@/lib/api/guards";
@@ -19,6 +20,8 @@ import { Book, Exam, Parent, SchoolClass, Section, Student, Subject, Teacher } f
 import { ensureParentLogin, parseObjectIds, syncParentStudents } from "@/lib/parent-account";
 import { ensureTeacherLogin } from "@/lib/teacher-account";
 import { attachProfilePhotoUrls, removeProfilePhoto } from "@/lib/profile-photo";
+import { applySectionPayload, assertSectionHasSeat } from "@/lib/sections";
+import { applySubjectPayload } from "@/lib/subjects";
 
 const STUDENT_LINKED = new Set(["marks", "results", "fees", "payments", "bookIssues", "transportAssignments"]);
 
@@ -42,6 +45,7 @@ export function getResource(key: string) {
 export async function listResource(resourceKey: string, request: Request) {
   const ctx = await requireWorkspaceContext();
   const resource = getResource(resourceKey);
+  requireModuleEnabled(ctx, resourceKey);
   requirePerm(ctx, `${resource.permission}.view`);
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
@@ -132,6 +136,7 @@ export async function listResource(resourceKey: string, request: Request) {
 export async function createResource(resourceKey: string, request: Request) {
   const ctx = await requireWorkspaceContext();
   const resource = getResource(resourceKey);
+  requireModuleEnabled(ctx, resourceKey);
   const collect = resourceKey === "payments";
   requirePerm(ctx, collect ? `${resource.permission}.create` : `${resource.permission}.create`);
   if (collect) {
@@ -201,6 +206,27 @@ export async function createResource(resourceKey: string, request: Request) {
       throw error;
     }
   }
+  if (resourceKey === "sections") {
+    await applySectionPayload(ctx.workspaceId, body);
+    const created = await resource.model.create({
+      ...body,
+      workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
+    });
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.create`, resourceKey, String(created._id));
+    return json({ item: created }, 201);
+  }
+  if (resourceKey === "subjects") {
+    await applySubjectPayload(ctx.workspaceId, body);
+    const created = await resource.model.create({
+      ...body,
+      workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
+    });
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.create`, resourceKey, String(created._id));
+    return json({ item: created }, 201);
+  }
+  if (resourceKey === "students" && body.sectionId) {
+    await assertSectionHasSeat(ctx.workspaceId, body.sectionId);
+  }
   const created = await resource.model.create({
     ...body,
     workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
@@ -214,6 +240,7 @@ type TenantDoc = { _id: unknown; workspaceId: unknown };
 export async function getResourceById(resourceKey: string, id: string) {
   const ctx = await requireWorkspaceContext();
   const resource = getResource(resourceKey);
+  requireModuleEnabled(ctx, resourceKey);
   requirePerm(ctx, `${resource.permission}.view`);
   const item = (await resource.model.findById(id).lean()) as unknown as TenantDoc | null;
   if (!item) throw new ApiError(404, "Record not found.");
@@ -227,6 +254,7 @@ export async function getResourceById(resourceKey: string, id: string) {
 export async function updateResource(resourceKey: string, id: string, request: Request) {
   const ctx = await requireWorkspaceContext();
   const resource = getResource(resourceKey);
+  requireModuleEnabled(ctx, resourceKey);
   requirePerm(ctx, `${resource.permission}.edit`);
   const existing = await resource.model.findById(id);
   if (!existing) throw new ApiError(404, "Record not found.");
@@ -235,6 +263,23 @@ export async function updateResource(resourceKey: string, id: string, request: R
   const body = stripClientWorkspaceId(await request.json()) as Record<string, unknown>;
   if (resourceKey === "parents" && "studentIds" in body) {
     body.studentIds = parseObjectIds(body.studentIds);
+  }
+  if (resourceKey === "sections") {
+    await applySectionPayload(ctx.workspaceId, body, id);
+    Object.assign(existing, body, { workspaceId: current.workspaceId });
+    await existing.save();
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.update`, resourceKey, id);
+    return json({ item: existing });
+  }
+  if (resourceKey === "subjects") {
+    await applySubjectPayload(ctx.workspaceId, body, id);
+    Object.assign(existing, body, { workspaceId: current.workspaceId });
+    await existing.save();
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.update`, resourceKey, id);
+    return json({ item: existing });
+  }
+  if (resourceKey === "students" && "sectionId" in body && body.sectionId) {
+    await assertSectionHasSeat(ctx.workspaceId, body.sectionId, id);
   }
   Object.assign(existing, body, { workspaceId: current.workspaceId });
   await existing.save();
@@ -305,6 +350,7 @@ export async function updateResource(resourceKey: string, id: string, request: R
 export async function deleteResource(resourceKey: string, id: string) {
   const ctx = await requireWorkspaceContext();
   const resource = getResource(resourceKey);
+  requireModuleEnabled(ctx, resourceKey);
   requirePerm(ctx, `${resource.permission}.delete`);
   const existing = await resource.model.findById(id);
   if (!existing) throw new ApiError(404, "Record not found.");

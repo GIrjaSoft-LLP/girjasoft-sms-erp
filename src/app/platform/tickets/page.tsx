@@ -65,8 +65,8 @@ export default function PlatformTicketsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold">Tickets</h1>
-        <p className="text-slate-500">Support requests from all school workspaces.</p>
+        <h1 className="text-2xl font-semibold text-[#0b1b3a]">Tickets</h1>
+        <p className="text-sm text-slate-500">Support requests from all school workspaces.</p>
       </div>
       {error ? <p className="text-red-600">{error}</p> : null}
       <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8">

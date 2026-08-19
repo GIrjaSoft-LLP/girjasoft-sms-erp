@@ -1,12 +1,13 @@
-import { errorResponse, json, requireSuperAdmin } from "@/lib/api/guards";
-import { Workspace } from "@/models/platform";
-import { User } from "@/models/identity";
-import { Staff, Student, Teacher } from "@/models/workspace";
+import { errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { workspaceSubscription } from "@/lib/workspace-validity";
+import { User } from "@/models/identity";
+import { Workspace } from "@/models/platform";
+import { Staff, Student, Teacher } from "@/models/workspace";
 
 export async function GET() {
   try {
-    await requireSuperAdmin();
+    await requirePlatformPerm("platform.workspaces.view");
     const [
       totalWorkspaces,
       activeWorkspaces,
@@ -51,6 +52,7 @@ export async function GET() {
           users,
           students,
           admin: admin?.name ?? "—",
+          ...workspaceSubscription(workspace),
         };
       }),
     );
@@ -68,6 +70,7 @@ export async function GET() {
         totalStaff,
       },
       workspaces: overview,
+      alerts: overview.filter((row) => row.warning),
     });
   } catch (error) {
     return errorResponse(error);
