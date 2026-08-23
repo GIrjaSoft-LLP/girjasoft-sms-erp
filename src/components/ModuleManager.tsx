@@ -23,6 +23,7 @@ type LookupRow = {
   admissionNumber?: string;
   sectionName?: string;
   numericName?: number;
+  employeeId?: string;
 };
 
 function Avatar({ id, photo, name, kind }: { id: string; photo?: unknown; name?: unknown; kind: string }) {
@@ -50,9 +51,13 @@ function Avatar({ id, photo, name, kind }: { id: string; photo?: unknown; name?:
 export function ModuleManager({
   resourceKey,
   viewPathPrefix,
+  allowCreate = true,
+  readOnly = false,
 }: {
   resourceKey: string;
   viewPathPrefix?: string;
+  allowCreate?: boolean;
+  readOnly?: boolean;
 }) {
   const resource = RESOURCES[resourceKey];
   const filters = RESOURCE_FILTERS[resourceKey] ?? [];
@@ -71,6 +76,7 @@ export function ModuleManager({
   const [classes, setClasses] = useState<LookupRow[]>([]);
   const [sections, setSections] = useState<LookupRow[]>([]);
   const [students, setStudents] = useState<LookupRow[]>([]);
+  const [teachers, setTeachers] = useState<LookupRow[]>([]);
   const [credentials, setCredentials] = useState<{
     title: string;
     name?: string;
@@ -120,8 +126,10 @@ export function ModuleManager({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceKey, classId, sectionId, status, date, day]);
 
+  const needsTeacherLookup = resourceKey === "sections" || resourceKey === "timetable";
+
   useEffect(() => {
-    if (!needsLookups && resourceKey !== "parents") return;
+    if (!needsLookups && resourceKey !== "parents" && !needsTeacherLookup) return;
     const requests = [
       api<{ items: LookupRow[] }>("/api/classes").catch(() => ({ items: [] as LookupRow[] })),
       api<{ items: LookupRow[] }>("/api/sections").catch(() => ({ items: [] as LookupRow[] })),
@@ -129,12 +137,22 @@ export function ModuleManager({
     if (resourceKey === "parents") {
       requests.push(api<{ items: LookupRow[] }>("/api/students").catch(() => ({ items: [] as LookupRow[] })));
     }
+    if (needsTeacherLookup) {
+      requests.push(api<{ items: LookupRow[] }>("/api/teachers").catch(() => ({ items: [] as LookupRow[] })));
+    }
     Promise.all(requests).then((results) => {
       setClasses(results[0].items);
       setSections(results[1].items);
-      if (results[2]) setStudents(results[2].items);
+      let index = 2;
+      if (resourceKey === "parents") {
+        setStudents(results[index]?.items ?? []);
+        index += 1;
+      }
+      if (needsTeacherLookup) {
+        setTeachers(results[index]?.items ?? []);
+      }
     });
-  }, [needsLookups, resourceKey]);
+  }, [needsLookups, needsTeacherLookup, resourceKey]);
 
   const visibleSections = useMemo(
     () => (classId ? sections.filter((row) => String(row.classId) === classId) : sections),
@@ -145,7 +163,12 @@ export function ModuleManager({
 
   function openCreate() {
     setEditing(null);
-    setForm({});
+    const defaults: Record<string, string> = {};
+    if (resourceKey === "staff") {
+      defaults.status = "ACTIVE";
+      defaults.enablePortalLogin = "true";
+    }
+    setForm(defaults);
     setFormError("");
     setPhotoFile(null);
     setRemovePhoto(false);
@@ -289,9 +312,11 @@ export function ModuleManager({
               Download ID Cards ({selected.length})
             </a>
           ) : null}
-          <button type="button" className="gs-btn px-4 py-2" onClick={openCreate}>
-            Create
-          </button>
+          {allowCreate ? (
+            <button type="button" className="gs-btn px-4 py-2" onClick={openCreate}>
+              Create
+            </button>
+          ) : null}
         </div>
       </div>
       {error ? <p className="text-red-600 text-sm">{error}</p> : null}
@@ -440,17 +465,26 @@ export function ModuleManager({
                   </td>
                 ))}
                 <td className="p-3 space-x-2">
+                  {viewPathPrefix && resourceKey === "teachers" ? (
+                    <a className="text-[#4c7eff]" href={`${viewPathPrefix}/${String(item._id)}`}>
+                      View
+                    </a>
+                  ) : null}
                   {viewPathPrefix && resourceKey === "students" ? (
                     <a className="text-[#4c7eff]" href={`${viewPathPrefix}/${String(item._id)}`}>
                       View
                     </a>
                   ) : null}
-                  <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
-                    Edit
-                  </button>
-                  <button className="text-red-600" onClick={() => remove(String(item._id))}>
-                    Delete
-                  </button>
+                  {!readOnly ? (
+                    <>
+                      <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
+                        Edit
+                      </button>
+                      <button className="text-red-600" onClick={() => remove(String(item._id))}>
+                        Delete
+                      </button>
+                    </>
+                  ) : null}
                   {hasIdCards ? (
                     <a
                       className="text-emerald-700"
@@ -576,6 +610,24 @@ export function ModuleManager({
                     {!students.length ? <p className="text-slate-500 text-sm">No students found.</p> : null}
                   </div>
                 </label>
+              ) : (resourceKey === "sections" && field.name === "classTeacherId") ||
+                (resourceKey === "timetable" && field.name === "teacherId") ? (
+                <label key={field.name} className="text-sm">
+                  <span className="block mb-1 text-slate-600">{field.label}</span>
+                  <select
+                    className="gs-input"
+                    value={form[field.name] ?? ""}
+                    onChange={(e) => setForm((f) => ({ ...f, [field.name]: e.target.value }))}
+                  >
+                    <option value="">None</option>
+                    {teachers.map((teacher) => (
+                      <option key={teacher._id} value={teacher._id}>
+                        {teacher.name}
+                        {teacher.employeeId ? ` (${teacher.employeeId})` : ""}
+                      </option>
+                    ))}
+                  </select>
+                </label>
               ) : (
               <label key={field.name} className={`text-sm ${field.type === "textarea" ? "md:col-span-2" : ""}`}>
                 <span className="block mb-1 text-slate-600">{field.label}</span>
@@ -590,6 +642,7 @@ export function ModuleManager({
                     className="gs-input"
                     value={form[field.name] ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, [field.name]: e.target.value }))}
+                    required={field.required}
                   >
                     <option value="">Select</option>
                     {field.options?.map((option) => (

@@ -63,7 +63,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#f3f6fb]">
+    <div className="flex h-dvh max-h-dvh flex-col overflow-hidden gs-shell-bg">
       <AppHeader
         variant="platform"
         user={user}
@@ -76,23 +76,26 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
         <aside
           className={`${
             sidebarOpen ? "w-56" : "w-0"
-          } shrink-0 overflow-hidden bg-[#0b1b3a] text-white transition-[width] duration-200`}
+          } gs-sidebar shrink-0 overflow-hidden transition-[width] duration-200`}
         >
           <div className="flex h-full w-56 flex-col">
             <nav className="gs-sidebar-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-2 text-sm">
-              {nav.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`block whitespace-nowrap rounded-lg px-2.5 py-1.5 ${
-                    pathname === item.href || pathname.startsWith(`${item.href}/`)
-                      ? "bg-[#4c7eff]"
-                      : "hover:bg-white/10"
-                  }`}
-                >
-                  {item.label}
-                </Link>
-              ))}
+              {nav.map((item) => {
+                const active = item.exact
+                  ? pathname === item.href
+                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
+                      active ? "gs-sidebar-link-active" : ""
+                    }`}
+                  >
+                    {item.label}
+                  </Link>
+                );
+              })}
             </nav>
           </div>
         </aside>

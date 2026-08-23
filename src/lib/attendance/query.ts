@@ -1,5 +1,4 @@
-import mongoose from "mongoose";
-import { ApiError, type TenantContext } from "@/lib/api/guards";
+import { collectValidObjectIds } from "@/lib/attendance/object-id";
 import type { AttendanceFilterType, ResolvedAttendanceFilter } from "@/lib/attendance/filters";
 import { resolveAttendanceScopes } from "@/lib/attendance/scope";
 import { assertPortalCanViewStudent, studentIdAllowed } from "@/lib/parent-access";
@@ -110,7 +109,7 @@ export function buildSubjectWise(
   subjectRecords: Array<{ subjectId?: unknown; status: string; date: string }>,
   subjectMap: Map<string, { name: string; code: string }>,
 ): SubjectAttendanceRow[] {
-  const subjectIds = [...new Set(subjectRecords.map((row) => String(row.subjectId)).filter(Boolean))];
+  const subjectIds = collectValidObjectIds(subjectRecords.map((row) => row.subjectId));
   return subjectIds.map((subjectId) => {
     const rows = subjectRecords.filter((row) => String(row.subjectId) === subjectId);
     const counts = countByStatus(rows);
@@ -151,14 +150,14 @@ export async function assertTeacherScopeFilters(ctx: TenantContext, filters: Att
   const allowedSections = await getTeacherAllowedSectionIds(ctx);
   if (allowedSections === null) return;
 
-  if (filters.sectionId && !allowedSections.has(filters.sectionId)) {
+  if (isValidObjectId(filters.sectionId) && !allowedSections.has(filters.sectionId!)) {
     throw new ApiError(403, "Forbidden.");
   }
 
-  if (filters.classId && !filters.sectionId) {
+  if (isValidObjectId(filters.classId) && !filters.sectionId) {
     const sections = await Section.find({
       workspaceId: ctx.workspaceId,
-      classId: new mongoose.Types.ObjectId(filters.classId),
+      classId: optionalObjectId(filters.classId),
     })
       .select("_id")
       .lean();
@@ -199,21 +198,24 @@ export async function resolveScopedStudentIds(ctx: TenantContext, filters: Atten
     workspaceId: new mongoose.Types.ObjectId(workspaceId),
     status: "ACTIVE",
   };
-  if (filters.academicSessionId) {
-    studentQuery.academicSessionId = new mongoose.Types.ObjectId(filters.academicSessionId);
+  if (optionalObjectId(filters.academicSessionId)) {
+    studentQuery.academicSessionId = optionalObjectId(filters.academicSessionId);
   }
-  if (filters.classId) studentQuery.classId = new mongoose.Types.ObjectId(filters.classId);
-  if (filters.sectionId) studentQuery.sectionId = new mongoose.Types.ObjectId(filters.sectionId);
-  if (filters.studentId) studentQuery._id = new mongoose.Types.ObjectId(filters.studentId);
+  const classOid = optionalObjectId(filters.classId);
+  if (classOid) studentQuery.classId = classOid;
+  const sectionOid = optionalObjectId(filters.sectionId);
+  if (sectionOid) studentQuery.sectionId = sectionOid;
+  const studentOid = optionalObjectId(filters.studentId);
+  if (studentOid) studentQuery._id = studentOid;
 
   const allowedSections = await getTeacherAllowedSectionIds(ctx);
   if (allowedSections) {
     if (filters.sectionId) {
       // already validated
-    } else if (filters.classId) {
+    } else if (classOid) {
       const sections = await Section.find({
         workspaceId,
-        classId: new mongoose.Types.ObjectId(filters.classId),
+        classId: classOid,
       })
         .select("_id")
         .lean();
@@ -286,9 +288,7 @@ export async function hydrateAttendanceRows(
         .filter(Boolean),
     ),
   ];
-  const subjectIds = [
-    ...new Set(subjectRecords.map((row) => String(row.subjectId)).filter(Boolean)),
-  ];
+  const subjectIds = collectValidObjectIds(subjectRecords.map((row) => row.subjectId));
 
   const students = options?.includeStudentMeta
     ? await Student.find({ workspaceId: ctx.workspaceId, _id: { $in: studentIds } }).lean()

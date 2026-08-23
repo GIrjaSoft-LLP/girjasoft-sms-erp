@@ -20,6 +20,9 @@ export type SessionPayload = JWTPayload & {
   linkedStudentId?: string | null;
   linkedStudentIds?: string[];
   linkedTeacherId?: string | null;
+  teacherContextClassId?: string | null;
+  teacherContextSectionId?: string | null;
+  teacherContextSubjectId?: string | null;
 };
 
 function getSecret() {

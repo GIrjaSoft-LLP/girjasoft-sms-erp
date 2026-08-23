@@ -17,6 +17,8 @@ type AdminDashboard = {
     pendingAttendance: number;
   };
   classWise: Array<{
+    classId: string;
+    sectionId: string;
     className: string;
     sectionName: string;
     totalStudents: number;
@@ -55,14 +57,29 @@ function AdminTodayStrip({ data }: { data: AdminDashboard }) {
 
       {!data.scopes.allAccess ? (
         <div className="gs-card p-4">
-          <h2 className="font-semibold">My Attendance Classes</h2>
-          <ul className="mt-3 space-y-1 text-sm text-slate-600">
-            {[...data.scopes.classTeacher, ...data.scopes.subjectTeacher].map((item) => (
-              <li key={item.label}>{item.label}</li>
-            ))}
-          </ul>
+          <h2 className="font-semibold">Today&apos;s Attendance</h2>
+          {data.classWise.length ? (
+            <ul className="mt-3 space-y-2 text-sm">
+              {data.classWise.map((item) => (
+                <li key={`${item.classId}-${item.sectionId}`} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    {item.className} - {item.sectionName}
+                    {item.marked ? ` · ${item.percent}% present` : " · Pending"}
+                  </span>
+                  <Link
+                    href={`/modules/attendance/mark?classId=${encodeURIComponent(item.classId)}&sectionId=${encodeURIComponent(item.sectionId)}`}
+                    className="text-[#4c7eff] hover:underline"
+                  >
+                    Mark Attendance
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="mt-3 text-sm text-slate-500">No assigned classes found for today.</p>
+          )}
           <Link href="/modules/attendance/mark" className="mt-3 inline-block text-sm text-[#4c7eff] hover:underline">
-            Mark Attendance
+            Open Mark Attendance
           </Link>
         </div>
       ) : (
@@ -97,7 +114,12 @@ export default function AttendanceDashboardPage() {
   return (
     <div className="space-y-6">
       {adminToday ? <AdminTodayStrip data={adminToday} /> : null}
-      <AttendanceViewPanel onStudentChange={handleParentChildChange} />
+      <div>
+        {adminToday && !adminToday.scopes.allAccess ? (
+          <h2 className="mb-3 text-lg font-semibold text-[#0b1b3a]">Attendance History</h2>
+        ) : null}
+        <AttendanceViewPanel onStudentChange={handleParentChildChange} />
+      </div>
     </div>
   );
 }

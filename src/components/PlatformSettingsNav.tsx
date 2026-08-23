@@ -15,8 +15,8 @@ export function PlatformSettingsNav({ permissions }: { permissions: string[] }) 
           <Link
             key={item.href}
             href={item.href}
-            className={`rounded-lg px-3 py-2 text-sm ${
-              active ? "bg-[#4c7eff] text-white" : "bg-white text-slate-700 border border-slate-200"
+            className={`rounded-lg px-3 py-2 text-sm transition-colors ${
+              active ? "gs-tab-active" : "gs-tab"
             }`}
           >
             {item.label}

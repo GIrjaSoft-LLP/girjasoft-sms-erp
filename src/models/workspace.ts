@@ -60,11 +60,16 @@ parentSchema.index({ workspaceId: 1, phone: 1 });
 const teacherSchema = new Schema(
   {
     ...tenantFields(),
+    staffId: { type: Schema.Types.ObjectId, ref: "Staff", default: null, index: true },
     employeeId: { type: String, required: true },
     name: { type: String, required: true },
     email: { type: String, default: "" },
     phone: { type: String, default: "" },
     department: { type: String, default: "Academic" },
+    designation: { type: String, default: "" },
+    qualification: { type: String, default: "" },
+    experience: { type: String, default: "" },
+    joiningDate: { type: String, default: "" },
     subjects: [{ type: String }],
     photo: { type: String, default: "" },
     status: { type: String, default: "ACTIVE", index: true },
@@ -73,6 +78,17 @@ const teacherSchema = new Schema(
 );
 teacherSchema.index({ workspaceId: 1, employeeId: 1 }, { unique: true });
 teacherSchema.index({ workspaceId: 1, email: 1 });
+
+const teacherClassAssignmentSchema = new Schema(
+  {
+    ...tenantFields(),
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", required: true, index: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", required: true, index: true },
+    status: { type: String, default: "ACTIVE", index: true },
+  },
+  { timestamps: true },
+);
+teacherClassAssignmentSchema.index({ workspaceId: 1, teacherId: 1, classId: 1 }, { unique: true });
 
 const staffSchema = new Schema(
   {
@@ -83,6 +99,12 @@ const staffSchema = new Schema(
     phone: { type: String, default: "" },
     department: { type: String, default: "" },
     designation: { type: String, default: "" },
+    staffType: { type: String, default: "", index: true },
+    qualification: { type: String, default: "" },
+    experience: { type: String, default: "" },
+    joiningDate: { type: String, default: "" },
+    linkedTeacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null, index: true },
+    enablePortalLogin: { type: Boolean, default: false },
     status: { type: String, default: "ACTIVE", index: true },
   },
   { timestamps: true },
@@ -609,6 +631,7 @@ const settingsSchema = new Schema(
     examination: { type: Schema.Types.Mixed, default: {} },
     communication: { type: Schema.Types.Mixed, default: {} },
     theme: { type: Schema.Types.Mixed, default: {} },
+    uiDesign: { type: Schema.Types.Mixed, default: {} },
     admission: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true },
@@ -622,6 +645,11 @@ function model(name: string, schema: Schema, collection: string) {
 export const Student = model("Student", studentSchema, "students");
 export const Parent = model("Parent", parentSchema, "parents");
 export const Teacher = model("Teacher", teacherSchema, "teachers");
+export const TeacherClassAssignment = model(
+  "TeacherClassAssignment",
+  teacherClassAssignmentSchema,
+  "teacherClassAssignments",
+);
 if (!Student.schema.path("photo")) {
   Student.schema.add({ photo: { type: String, default: "" } });
 }

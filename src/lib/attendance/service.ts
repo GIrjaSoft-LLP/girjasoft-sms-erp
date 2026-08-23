@@ -5,7 +5,8 @@ import { ApiError } from "@/lib/api/errors";
 import type { TenantContext } from "@/lib/api/guards";
 import { assertPortalCanViewStudent, studentIdAllowed } from "@/lib/parent-access";
 import { isParentLike, isStudentLike } from "@/lib/rbac";
-import { assertScopeAccess, resolveAttendanceScopes } from "@/lib/attendance/scope";
+import { assertScopeAccess, collectAllowedSectionIds, resolveAttendanceScopes } from "@/lib/attendance/scope";
+import { getTeacherAllowedSectionIds } from "@/lib/attendance/query";
 import { getAttendanceSettings } from "@/lib/attendance/settings";
 import {
   type AttendanceFilterInput,
@@ -136,6 +137,7 @@ export async function getAttendanceDashboard(ctx: TenantContext, options?: { stu
   const date = todayIso();
   const settings = await getAttendanceSettings(workspaceId);
   const scopes = await resolveAttendanceScopes(workspaceId, ctx.session, ctx.permissions, ctx.impersonating);
+  const allowedSectionIds = collectAllowedSectionIds(scopes);
 
   const studentQuery: Record<string, unknown> = {
     workspaceId: new mongoose.Types.ObjectId(workspaceId),
@@ -148,34 +150,46 @@ export async function getAttendanceDashboard(ctx: TenantContext, options?: { stu
     attendanceType: "CLASS",
   };
 
-  if (!scopes.allAccess && scopes.classTeacher.length) {
-    const sectionIds = scopes.classTeacher.map((item) => new mongoose.Types.ObjectId(item.sectionId));
-    studentQuery.sectionId = { $in: sectionIds };
-    attendanceQuery.sectionId = { $in: sectionIds };
-  } else if (!scopes.allAccess && !scopes.subjectTeacher.length) {
-    return {
-      role: "admin" as const,
-      stats: {
-        totalStudents: 0,
-        presentToday: 0,
-        absentToday: 0,
-        lateToday: 0,
-        leaveToday: 0,
-        attendancePercent: 0,
-        pendingAttendance: 0,
-      },
-      classWise: [],
-      scopes,
-      settings,
-    };
+  if (allowedSectionIds) {
+    if (!allowedSectionIds.size) {
+      return {
+        role: "admin" as const,
+        stats: {
+          totalStudents: 0,
+          presentToday: 0,
+          absentToday: 0,
+          lateToday: 0,
+          leaveToday: 0,
+          attendancePercent: 0,
+          pendingAttendance: 0,
+        },
+        classWise: [],
+        scopes,
+        settings,
+      };
+    }
+    const sectionObjectIds = [...allowedSectionIds].map((id) => new mongoose.Types.ObjectId(id));
+    studentQuery.sectionId = { $in: sectionObjectIds };
+    attendanceQuery.sectionId = { $in: sectionObjectIds };
   }
+
+  const sectionFilter = allowedSectionIds
+    ? { workspaceId, _id: { $in: [...allowedSectionIds].map((id) => new mongoose.Types.ObjectId(id)) } }
+    : { workspaceId };
 
   const [totalStudents, records, sections, classes, sessions] = await Promise.all([
     Student.countDocuments(studentQuery),
     Attendance.find(attendanceQuery).lean(),
-    Section.find({ workspaceId }).lean(),
+    Section.find(sectionFilter).lean(),
     SchoolClass.find({ workspaceId }).select("name numericName").lean(),
-    AttendanceSession.find({ workspaceId, date, attendanceType: "CLASS" }).lean(),
+    AttendanceSession.find({
+      workspaceId,
+      date,
+      attendanceType: "CLASS",
+      ...(allowedSectionIds
+        ? { sectionId: { $in: [...allowedSectionIds].map((id) => new mongoose.Types.ObjectId(id)) } }
+        : {}),
+    }).lean(),
   ]);
 
   const counts = countByStatus(records);
@@ -292,6 +306,14 @@ export async function getAttendanceRoster(
   return {
     session,
     locked: Boolean(session && session.status === "SUBMITTED" && settings.lockAfterSubmit),
+    submitted: session?.status === "SUBMITTED",
+    allowEdit: Boolean(
+      !session ||
+        session.status !== "SUBMITTED" ||
+        scopes.allAccess ||
+        settings.allowTeacherEdit ||
+        !settings.lockAfterSubmit,
+    ),
     students: students.map((student, index) => {
       const existing = recordMap.get(String(student._id));
       return {
@@ -335,6 +357,24 @@ export async function saveAttendanceMarking(
     if (!ATTENDANCE_STATUSES.includes(record.status)) {
       throw new ApiError(400, `Invalid attendance status: ${record.status}`);
     }
+  }
+
+  const validStudentIds = new Set(
+    (
+      await Student.find({
+        workspaceId,
+        classId: input.classId,
+        sectionId: input.sectionId,
+        status: "ACTIVE",
+        _id: { $in: input.records.map((row) => new mongoose.Types.ObjectId(row.studentId)) },
+      })
+        .select("_id")
+        .lean()
+    ).map((row) => String(row._id)),
+  );
+
+  if (input.records.some((row) => !validStudentIds.has(row.studentId))) {
+    throw new ApiError(403, "One or more students are not in this class/section.");
   }
 
   const academicSessionId =
@@ -451,46 +491,22 @@ export async function getAttendanceRegister(
     subjectId?: string;
     attendanceType?: AttendanceType | "";
     status?: string;
+    academicSessionId?: string;
   },
 ) {
-  const workspaceId = ctx.workspaceId;
-  const query: Record<string, unknown> = { workspaceId: new mongoose.Types.ObjectId(workspaceId) };
-  if (filters.from || filters.to) {
-    query.date = {
-      ...(filters.from ? { $gte: filters.from } : {}),
-      ...(filters.to ? { $lte: filters.to } : {}),
-    };
-  }
-  if (filters.classId) query.classId = new mongoose.Types.ObjectId(filters.classId);
-  if (filters.sectionId) query.sectionId = new mongoose.Types.ObjectId(filters.sectionId);
-  if (filters.subjectId) query.subjectId = new mongoose.Types.ObjectId(filters.subjectId);
-  if (filters.attendanceType) query.attendanceType = filters.attendanceType;
-  if (filters.status) query.status = filters.status;
-
-  const sessions = await AttendanceSession.find(query).sort({ date: -1 }).limit(500).lean();
-  const classIds = [...new Set(sessions.map((row) => String(row.classId)))];
-  const sectionIds = [...new Set(sessions.map((row) => String(row.sectionId)))];
-  const subjectIds = [...new Set(sessions.map((row) => String(row.subjectId)).filter(Boolean))];
-  const [classes, sections, subjects] = await Promise.all([
-    SchoolClass.find({ _id: { $in: classIds } }).select("name").lean(),
-    Section.find({ _id: { $in: sectionIds } }).select("name").lean(),
-    subjectIds.length ? Subject.find({ _id: { $in: subjectIds } }).select("name").lean() : [],
-  ]);
-  const classMap = new Map(classes.map((row) => [String(row._id), row.name]));
-  const sectionMap = new Map(sections.map((row) => [String(row._id), row.name]));
-  const subjectMap = new Map(subjects.map((row) => [String(row._id), row.name]));
-
-  return sessions.map((row) => ({
-    _id: String(row._id),
+  const { getAttendanceRegisterReport } = await import("@/lib/attendance/register");
+  const report = await getAttendanceRegisterReport(ctx, filters);
+  return report.records.map((row) => ({
+    _id: row._id,
     date: row.date,
-    className: classMap.get(String(row.classId)) ?? "",
-    sectionName: sectionMap.get(String(row.sectionId)) ?? "",
-    subjectName: row.subjectId ? subjectMap.get(String(row.subjectId)) ?? "" : "—",
+    className: row.className,
+    sectionName: row.sectionName,
+    subjectName: row.subjectName,
     attendanceType: row.attendanceType,
-    present: row.presentCount ?? 0,
-    absent: row.absentCount ?? 0,
-    late: row.lateCount ?? 0,
-    leave: row.leaveCount ?? 0,
+    present: row.status === "PRESENT" ? 1 : 0,
+    absent: row.status === "ABSENT" ? 1 : 0,
+    late: row.status === "LATE" ? 1 : 0,
+    leave: row.status === "LEAVE" ? 1 : 0,
     status: row.status,
   }));
 }

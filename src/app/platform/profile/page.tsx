@@ -44,8 +44,8 @@ export default function PlatformProfilePage() {
   return (
     <div className="max-w-xl space-y-4">
       <div>
-        <h1 className="text-2xl font-semibold text-[#0b1b3a]">My Profile</h1>
-        <p className="text-sm text-slate-500">Manage your platform account photo.</p>
+        <h2 className="text-xl font-semibold gs-heading">My Profile</h2>
+        <p className="text-sm gs-muted">Manage your platform account photo.</p>
       </div>
       <div className="gs-card space-y-3 p-5 text-sm">
         <p><span className="text-slate-500">Name</span><span className="mt-1 block font-medium">{user?.name ?? "—"}</span></p>

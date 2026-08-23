@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { EmailClientSection } from "@/components/EmailClientSection";
 import { api } from "@/lib/client";
 
 export default function SettingsPage() {
@@ -137,6 +138,7 @@ export default function SettingsPage() {
           </label>
         ))}
       </div>
+      <EmailClientSection />
       <div className="gs-card p-5 grid md:grid-cols-2 gap-3">
         <h2 className="md:col-span-2 font-semibold">Finance</h2>
         <label className="text-sm">

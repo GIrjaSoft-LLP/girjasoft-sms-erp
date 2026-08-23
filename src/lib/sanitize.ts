@@ -8,6 +8,8 @@ const SECRET_KEYS = new Set([
   "token",
   "resetToken",
   "resetTokenHash",
+  "smtpPassword",
+  "smtpPasswordEncrypted",
 ]);
 
 export function stripClientWorkspaceId<T extends Record<string, unknown>>(

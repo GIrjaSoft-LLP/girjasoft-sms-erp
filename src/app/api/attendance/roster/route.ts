@@ -1,6 +1,10 @@
 import { errorResponse, json } from "@/lib/api/guards";
 import { assertStaffAttendanceManagement, requireAttendanceContext } from "@/lib/attendance/guard";
-import { resolveAttendanceScopes, getSubjectsForClassSection } from "@/lib/attendance/scope";
+import {
+  getTeacherAttendanceMarkOptions,
+  getSubjectsForClassSection,
+  resolveAttendanceScopes,
+} from "@/lib/attendance/scope";
 import { getAttendanceRoster } from "@/lib/attendance/service";
 import type { AttendanceType } from "@/config/attendance";
 
@@ -21,10 +25,26 @@ export async function GET(request: Request) {
       return json(scopes);
     }
 
+    if (mode === "options") {
+      const options = await getTeacherAttendanceMarkOptions(ctx);
+      return json(options);
+    }
+
     if (mode === "subjects") {
       const classId = url.searchParams.get("classId") ?? "";
       const sectionId = url.searchParams.get("sectionId") ?? "";
-      const subjects = await getSubjectsForClassSection(ctx.workspaceId, classId, sectionId || undefined);
+      const scopes = await resolveAttendanceScopes(
+        ctx.workspaceId,
+        ctx.session,
+        ctx.permissions,
+        ctx.impersonating,
+      );
+      const subjects = await getSubjectsForClassSection(
+        ctx.workspaceId,
+        classId,
+        sectionId || undefined,
+        scopes,
+      );
       return json({
         subjects: subjects.map((subject) => ({
           _id: String(subject._id),

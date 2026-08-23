@@ -48,8 +48,8 @@ export function SidebarNavGroup({
               <Link
                 key={child.href}
                 href={child.href}
-                className={`block whitespace-nowrap rounded-lg px-2.5 py-1.5 ${
-                  active ? "bg-[#4c7eff]" : "hover:bg-white/10"
+                className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
+                  active ? "gs-sidebar-link-active" : ""
                 }`}
               >
                 {child.label}

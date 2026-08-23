@@ -31,7 +31,7 @@ export const PERMISSION_MODULES: PermissionModule[] = [
     department: "Administration",
     actions: ["view", "create", "edit", "delete", "approve", "verify", "convert", "collect", "cancel", "refund", "export", "reports"],
   },
-  { key: "teachers", label: "Teachers", department: "Academic", actions: ["view", "create", "edit", "delete"] },
+  { key: "teachers", label: "Teachers", department: "Academic", actions: ["view", "create", "edit", "delete", "assign"] },
   { key: "staff", label: "Staff", department: "HR", actions: ["view", "create", "edit", "delete"] },
   { key: "parents", label: "Parents", department: "Academic", actions: ["view", "create", "edit", "delete"] },
   { key: "classes", label: "Classes", department: "Academic", actions: ["view", "create", "edit", "delete"] },

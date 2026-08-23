@@ -34,7 +34,7 @@ export default function LoginPage() {
 
   return (
     <div className="h-full min-h-0 overflow-y-auto grid lg:grid-cols-2">
-      <div className="hidden lg:flex flex-col justify-between bg-[#0b1b3a] text-white p-10">
+      <div className="hidden lg:flex flex-col justify-between gs-sidebar text-white p-10">
         <BrandMark />
         <div>
           <h1 className="text-4xl font-semibold">{APP_NAME}</h1>
@@ -46,14 +46,14 @@ export default function LoginPage() {
         </div>
         <p className="text-sm text-blue-200">{COMPANY_NAME}</p>
       </div>
-      <div className="grid place-items-center p-6 bg-[#f3f6fb]">
+      <div className="grid place-items-center p-6 gs-shell-bg">
         <form onSubmit={onSubmit} className="gs-card w-full max-w-md p-8 space-y-4">
           <div className="lg:hidden">
             <BrandMark />
           </div>
           <div>
-            <h2 className="text-2xl font-semibold text-[#0b1b3a]">{APP_NAME}</h2>
-            <p className="text-slate-500">{APP_TAGLINE}</p>
+            <h2 className="text-2xl font-semibold gs-heading">{APP_NAME}</h2>
+            <p className="gs-muted">{APP_TAGLINE}</p>
           </div>
           <label className="block text-sm">
             Email / Username

@@ -332,21 +332,39 @@ export function AppHeader({
                     <p className="truncate text-xs text-slate-500">{user.email}</p>
                   </div>
                   {isPlatform ? (
-                    <Link
-                      href="/platform/profile"
-                      className="block px-3 py-2 text-sm hover:bg-slate-50"
-                      onClick={() => setMenu(null)}
-                    >
-                      My Profile
-                    </Link>
+                    <>
+                      <Link
+                        href="/platform/profile"
+                        className="block px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => setMenu(null)}
+                      >
+                        My Profile
+                      </Link>
+                      <Link
+                        href="/platform/profile/design"
+                        className="block px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => setMenu(null)}
+                      >
+                        Design
+                      </Link>
+                    </>
                   ) : (
-                    <Link
-                      href="/profile"
-                      className="block px-3 py-2 text-sm hover:bg-slate-50"
-                      onClick={() => setMenu(null)}
-                    >
-                      My Profile
-                    </Link>
+                    <>
+                      <Link
+                        href="/profile"
+                        className="block px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => setMenu(null)}
+                      >
+                        My Profile
+                      </Link>
+                      <Link
+                        href="/profile/design"
+                        className="block px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => setMenu(null)}
+                      >
+                        Design
+                      </Link>
+                    </>
                   )}
                   <button
                     type="button"

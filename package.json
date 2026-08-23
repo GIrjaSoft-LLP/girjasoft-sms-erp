@@ -21,6 +21,7 @@
     "seed:attendance-dm01": "tsx scripts/seed-attendance-dm01.ts",
     "seed:promotion-dm01": "tsx scripts/seed-promotion-dm01.ts",
     "seed:admissions-all": "tsx scripts/backfill-admissions-all-workspaces.ts",
+    "seed:teacher-assignments": "tsx scripts/backfill-teacher-class-assignments.ts",
     "test:security": "tsx tests/security.test.ts"
   },
   "dependencies": {
@@ -30,6 +31,7 @@
     "jose": "^6.2.9",
     "mongoose": "^9.9.2",
     "next": "16.3.1",
+    "nodemailer": "^9.0.5",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.4.3"
@@ -38,6 +40,7 @@
     "@tailwindcss/postcss": "^4",
     "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

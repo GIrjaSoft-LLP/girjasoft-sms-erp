@@ -12,7 +12,7 @@ function secret() {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isLogin = pathname === "/login" || pathname === "/forgot-password";
+  const isLogin = pathname === "/login" || pathname === "/forgot-password" || pathname === "/reset-password";
   const isPublic =
     isLogin ||
     pathname.startsWith("/branding") ||

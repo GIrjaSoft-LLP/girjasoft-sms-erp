@@ -22,8 +22,14 @@ import {
 } from "@/lib/excel-academic";
 import { cell, excelFileResponse, readExcelObjects, rowsToExcelBuffer } from "@/lib/excel";
 import { ensureParentLogin, parseObjectIds, syncParentStudents } from "@/lib/parent-account";
+import {
+  isTeacherStaff,
+  normalizeStaffType,
+  staffPortalLoginEnabled,
+  syncStaffTeacherProfile,
+} from "@/lib/staff-teacher-sync";
 import { ensureTeacherLogin } from "@/lib/teacher-account";
-import { Parent, Teacher } from "@/models/workspace";
+import { Parent, Staff, Teacher } from "@/models/workspace";
 
 type Ctx = { params: Promise<{ resource: string }> };
 
@@ -229,6 +235,16 @@ export async function POST(request: Request, ctx: Ctx) {
             await teacher.deleteOne();
             throw error;
           }
+        } else if (resourceKey === "staff") {
+          const staffType = normalizeStaffType(document);
+          const isTeacher = isTeacherStaff({ staffType, designation: String(document.designation ?? "") });
+          const staff = await Staff.create({
+            ...document,
+            staffType,
+            enablePortalLogin: staffPortalLoginEnabled(document, isTeacher),
+            workspaceId: new mongoose.Types.ObjectId(tenant.workspaceId),
+          });
+          await syncStaffTeacherProfile(tenant.workspaceId, staff.toObject(), { createPassword: true });
         } else {
           await resource.model.create({
             ...document,

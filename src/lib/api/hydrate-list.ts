@@ -50,6 +50,9 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
     }
   }
   const teacherIds = collect(items, "teacherId");
+  if (resourceKey === "sections") {
+    teacherIds.push(...collect(items, "classTeacherId"));
+  }
   const staffIds = collect(items, "staffId");
   const subjectIds = collect(items, "subjectId");
   const examIds = collect(items, "examId");
@@ -233,10 +236,12 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
         ? (() => {
             const enrolled = sectionStudentCounts.get(String(item._id)) ?? 0;
             const capacity = Number(item.capacity ?? 0);
+            const classTeacher = teacherMap.get(refId(item.classTeacherId));
             return {
               classOrder: item.classOrder ?? "",
               studentCount: enrolled,
               availableSeats: Math.max(0, capacity - enrolled),
+              classTeacherName: classTeacher?.name ?? "",
             };
           })()
         : {}),
@@ -254,6 +259,13 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
         ? {
             username: teacherUser?.username || teacherUser?.email || "",
             loginStatus: teacherUser ? teacherUser.status : "NO LOGIN",
+          }
+        : {}),
+      ...(resourceKey === "staff"
+        ? {
+            staffType:
+              String(item.staffType ?? "").trim() ||
+              (item.linkedTeacherId ? "Teacher" : ""),
           }
         : {}),
     };

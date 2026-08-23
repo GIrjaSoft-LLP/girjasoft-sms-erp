@@ -18,6 +18,7 @@ import { stripClientWorkspaceId } from "@/lib/sanitize";
 import { User } from "@/models/identity";
 import { Book, Exam, Parent, SchoolClass, Section, Student, Subject, Teacher } from "@/models/workspace";
 import { ensureParentLogin, parseObjectIds, syncParentStudents } from "@/lib/parent-account";
+import { assertTeacherCreationAllowed, isTeacherStaff, normalizeStaffType, staffPortalLoginEnabled, syncStaffTeacherProfile } from "@/lib/staff-teacher-sync";
 import { ensureTeacherLogin } from "@/lib/teacher-account";
 import { attachProfilePhotoUrls, removeProfilePhoto } from "@/lib/profile-photo";
 import { applySectionPayload, assertSectionHasSeat } from "@/lib/sections";
@@ -175,36 +176,36 @@ export async function createResource(resourceKey: string, request: Request) {
     );
   }
   if (resourceKey === "teachers") {
-    const created = await Teacher.create({
+    await assertTeacherCreationAllowed();
+  }
+  if (resourceKey === "staff") {
+    const staffType = normalizeStaffType(body);
+    const isTeacher = isTeacherStaff({ staffType, designation: String(body.designation ?? "") });
+    const created = await resource.model.create({
       ...body,
+      staffType,
+      enablePortalLogin: staffPortalLoginEnabled(body, isTeacher),
       workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
     });
-    try {
-      const { user, temporaryPassword } = await ensureTeacherLogin({
-        workspaceId: ctx.workspaceId,
-        teacher: created,
-        createPassword: true,
-      });
-      await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.create`, resourceKey, String(created._id));
-      return json(
-        {
-          item: created,
-          login: user
-            ? {
-                name: created.name,
-                username: user.username,
-                email: user.email,
-                temporaryPassword,
-                role: "Teacher",
-              }
-            : null,
-        },
-        201,
-      );
-    } catch (error) {
-      await created.deleteOne();
-      throw error;
-    }
+    const staffDoc = created as unknown as {
+      _id: mongoose.Types.ObjectId;
+      name: string;
+      email?: string;
+      phone?: string;
+      department?: string;
+      designation?: string;
+      employeeId?: string;
+      qualification?: string;
+      experience?: string;
+      joiningDate?: string;
+      status?: string;
+      staffType?: string;
+      linkedTeacherId?: mongoose.Types.ObjectId;
+      enablePortalLogin?: boolean;
+    };
+    const { login } = await syncStaffTeacherProfile(ctx.workspaceId, staffDoc, { createPassword: true });
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.create`, resourceKey, String(created._id));
+    return json({ item: created, login }, 201);
   }
   if (resourceKey === "sections") {
     await applySectionPayload(ctx.workspaceId, body);
@@ -281,8 +282,46 @@ export async function updateResource(resourceKey: string, id: string, request: R
   if (resourceKey === "students" && "sectionId" in body && body.sectionId) {
     await assertSectionHasSeat(ctx.workspaceId, body.sectionId, id);
   }
+  if (resourceKey === "staff") {
+    const currentStaff = existing.toObject() as {
+      staffType?: string;
+      designation?: string;
+      linkedTeacherId?: unknown;
+    };
+    const staffType = normalizeStaffType(body, currentStaff);
+    const isTeacher = isTeacherStaff({
+      staffType,
+      designation: String(body.designation ?? currentStaff.designation ?? ""),
+      linkedTeacherId: currentStaff.linkedTeacherId,
+    });
+    body.staffType = staffType;
+    if ("enablePortalLogin" in body || !isTeacher) {
+      body.enablePortalLogin = staffPortalLoginEnabled(body, isTeacher);
+    }
+  }
   Object.assign(existing, body, { workspaceId: current.workspaceId });
   await existing.save();
+  if (resourceKey === "staff") {
+    const staffDoc = existing as unknown as {
+      _id: mongoose.Types.ObjectId;
+      name: string;
+      email?: string;
+      phone?: string;
+      department?: string;
+      designation?: string;
+      employeeId?: string;
+      qualification?: string;
+      experience?: string;
+      joiningDate?: string;
+      status?: string;
+      staffType?: string;
+      linkedTeacherId?: mongoose.Types.ObjectId;
+      enablePortalLogin?: boolean;
+    };
+    const { login } = await syncStaffTeacherProfile(ctx.workspaceId, staffDoc, { createPassword: true });
+    await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.update`, resourceKey, id);
+    return json({ item: existing, login: login ?? undefined });
+  }
   if (resourceKey === "parents") {
     const parent = existing as unknown as {
       _id: mongoose.Types.ObjectId;
@@ -316,6 +355,7 @@ export async function updateResource(resourceKey: string, id: string, request: R
   if (resourceKey === "teachers") {
     const teacher = existing as unknown as {
       _id: mongoose.Types.ObjectId;
+      staffId?: mongoose.Types.ObjectId;
       name: string;
       email?: string;
       phone?: string;
@@ -323,6 +363,9 @@ export async function updateResource(resourceKey: string, id: string, request: R
       employeeId?: string;
       status?: string;
     };
+    if (teacher.staffId) {
+      throw new ApiError(403, "Edit this teacher from Settings → Staff.");
+    }
     const { user, temporaryPassword } = await ensureTeacherLogin({
       workspaceId: ctx.workspaceId,
       teacher,
@@ -363,6 +406,10 @@ export async function deleteResource(resourceKey: string, id: string) {
     );
   }
   if (resourceKey === "teachers") {
+    const teacher = existing as unknown as { staffId?: mongoose.Types.ObjectId };
+    if (teacher.staffId) {
+      throw new ApiError(403, "Remove or deactivate this teacher from Settings → Staff.");
+    }
     await User.updateMany(
       { workspaceId: ctx.workspaceId, linkedTeacherId: existing._id },
       { $set: { status: "DISABLED" } },

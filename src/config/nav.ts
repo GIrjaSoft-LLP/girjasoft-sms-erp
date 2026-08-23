@@ -21,6 +21,7 @@ export const SETTINGS_NAV: NavLink[] = [
   { href: "/settings", label: "Organization", permission: "settings.view", exact: true },
   { href: "/settings/users", label: "Users", permission: "users.view" },
   { href: "/settings/staff", label: "Staff", permission: "staff.view" },
+  { href: "/settings/teacher-assignments", label: "Teacher Assignment", permission: "teachers.view" },
   { href: "/settings/roles", label: "Roles", permission: "roles.view" },
   { href: "/settings/admission", label: "Admission", permission: "admissions.view" },
   { href: "/settings/student-info", label: "Student Info", permission: "settings.view" },
@@ -36,7 +37,7 @@ export const WORKSPACE_NAV: NavItem[] = [
     permission: "students.view",
     anyOf: ["students.view", "parents.view", "classes.view"],
   },
-  { href: "/modules/teachers", label: "Teachers", permission: "teachers.view" },
+  { href: "/modules/teacher", label: "Teacher", permission: "teachers.view" },
   { href: "/modules/attendance", label: "Attendance", permission: "attendance.view" },
   { href: "/modules/timetable", label: "Timetable", permission: "timetable.view" },
   { href: "/modules/homework", label: "Homework", permission: "homework.view" },
@@ -64,6 +65,7 @@ export const WORKSPACE_NAV: NavItem[] = [
 ];
 
 export const PLATFORM_NAV = [
+  { href: "/platform/dashboard", label: "Dashboard", permission: "platform.workspaces.view", exact: true },
   { href: "/platform/workspaces/new", label: "Create Workspace", permission: "platform.workspaces.create" },
   { href: "/platform/users", label: "Workspace Users", permission: "platform.workspaceUsers.view" },
   { href: "/platform/tickets", label: "Tickets", permission: "platform.tickets.view" },
@@ -72,6 +74,7 @@ export const PLATFORM_NAV = [
 
 export const PLATFORM_SETTINGS_NAV = [
   { href: "/platform/settings", label: "General", permission: "platform.settings.view", exact: true },
+  { href: "/platform/settings/email", label: "Email Configuration", permission: "platform.settings.view" },
   { href: "/platform/settings/roles", label: "Roles", permission: "platform.roles.view" },
   { href: "/platform/settings/users", label: "Users", permission: "platform.users.view" },
 ];

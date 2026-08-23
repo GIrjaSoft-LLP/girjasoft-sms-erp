@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 import { ApiError } from "@/lib/api/errors";
-import { SchoolClass, Section, Student } from "@/models/workspace";
+import { SchoolClass, Section, Student, Teacher } from "@/models/workspace";
 
 export async function applySectionPayload(
   workspaceId: string,
@@ -71,6 +71,19 @@ export async function applySectionPayload(
   body.classId = new mongoose.Types.ObjectId(classId);
   body.name = name;
   body.capacity = capacity;
+
+  if ("classTeacherId" in body) {
+    const raw = String(body.classTeacherId ?? "").trim();
+    if (!raw) {
+      body.classTeacherId = null;
+    } else if (!mongoose.isValidObjectId(raw)) {
+      throw new ApiError(400, "Class Teacher is invalid.");
+    } else {
+      const teacher = await Teacher.findOne({ _id: raw, workspaceId });
+      if (!teacher) throw new ApiError(400, "Selected class teacher is invalid.");
+      body.classTeacherId = new mongoose.Types.ObjectId(raw);
+    }
+  }
 
   return body;
 }

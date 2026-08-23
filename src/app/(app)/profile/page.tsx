@@ -76,7 +76,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-xl space-y-4">
-      <h1 className="text-2xl font-semibold">My Profile</h1>
+      <h2 className="text-xl font-semibold gs-heading">My Profile</h2>
       <div className="gs-card p-5 space-y-3 text-sm">
         <p>
           <span className="text-slate-500">Name</span>

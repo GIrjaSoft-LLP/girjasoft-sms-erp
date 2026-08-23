@@ -8,6 +8,7 @@ import { verifyPassword } from "@/lib/password";
 import { mergePermissions } from "@/lib/rbac";
 import { resolveEffectivePermissions } from "@/lib/session-permissions";
 import { enrichParentSession } from "@/lib/parent-access";
+import { enrichTeacherSession } from "@/lib/teacher-context";
 import { buildPlatformSession, ensurePlatformSystemRoles } from "@/lib/platform-access";
 import { isWorkspaceExpired } from "@/lib/workspace-validity";
 import {
@@ -35,6 +36,9 @@ async function buildWorkspaceSession(user: {
   linkedStudentId?: unknown;
   linkedStudentIds?: unknown[];
   linkedTeacherId?: unknown;
+  teacherContextClassId?: unknown;
+  teacherContextSectionId?: unknown;
+  teacherContextSubjectId?: unknown;
 }): Promise<SessionPayload> {
   const roles = await Role.find({
     _id: { $in: user.roleIds },
@@ -53,6 +57,9 @@ async function buildWorkspaceSession(user: {
     linkedStudentId: user.linkedStudentId ? String(user.linkedStudentId) : null,
     linkedStudentIds: (user.linkedStudentIds ?? []).map((id) => String(id)),
     linkedTeacherId: user.linkedTeacherId ? String(user.linkedTeacherId) : null,
+    teacherContextClassId: user.teacherContextClassId ? String(user.teacherContextClassId) : null,
+    teacherContextSectionId: user.teacherContextSectionId ? String(user.teacherContextSectionId) : null,
+    teacherContextSubjectId: user.teacherContextSubjectId ? String(user.teacherContextSubjectId) : null,
   };
 }
 
@@ -138,7 +145,11 @@ export async function POST(request: Request) {
     await logWorkspace(session, session.workspaceId!, "USER_LOGIN", "users", session.sub);
     return json({
       accountType: "WORKSPACE",
-      redirectTo: session.roleSlugs.includes("parent") ? "/modules/student-info" : "/dashboard",
+      redirectTo: session.roleSlugs.includes("parent")
+        ? "/modules/student-info"
+        : session.roleSlugs.includes("teacher")
+          ? "/modules/teacher"
+          : "/dashboard",
       user: {
         name: session.name,
         email: session.email,
@@ -171,6 +182,9 @@ export async function GET() {
     if (session.workspaceId && session.roleSlugs?.includes("parent")) {
       session = await enrichParentSession(session, session.workspaceId);
     }
+    if (session.workspaceId && session.roleSlugs?.includes("teacher")) {
+      session = await enrichTeacherSession(session, session.workspaceId);
+    }
     return json({
       user: {
         name: session.name,
@@ -183,6 +197,9 @@ export async function GET() {
         linkedStudentId: session.linkedStudentId,
         linkedStudentIds: session.linkedStudentIds,
         linkedTeacherId: session.linkedTeacherId,
+        teacherContextClassId: session.teacherContextClassId,
+        teacherContextSectionId: session.teacherContextSectionId,
+        teacherContextSubjectId: session.teacherContextSubjectId,
       },
     });
   } catch (error) {

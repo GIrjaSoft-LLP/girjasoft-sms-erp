@@ -170,6 +170,7 @@ export function AttendanceViewPanel({ mode = "view", studentId, onStudentChange 
             records={data.records}
             dailyBreakdown={data.dailyBreakdown}
             showStudentColumns={showStudentColumns}
+            title={role === "teacher" ? "Attendance History" : "Attendance Records"}
           />
         </>
       ) : null}

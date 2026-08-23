@@ -45,6 +45,12 @@ const platformAdminSchema = new Schema(
     workspaceId: { type: Schema.Types.ObjectId, default: null },
     status: { type: String, enum: ["ACTIVE", "DISABLED"], default: "ACTIVE" },
     lastLoginAt: { type: Date, default: null },
+    designPreferences: {
+      theme: { type: String, default: "" },
+      mode: { type: String, default: "system" },
+      accentColor: { type: String, default: "" },
+      customized: { type: Boolean, default: false },
+    },
   },
   { timestamps: true },
 );

@@ -6,6 +6,7 @@ type AttendanceRecordsTableProps = {
   records: AttendanceRecordItem[];
   dailyBreakdown: DailyBreakdownItem[];
   showStudentColumns?: boolean;
+  title?: string;
 };
 
 export function AttendanceRecordsTable({
@@ -13,6 +14,7 @@ export function AttendanceRecordsTable({
   records,
   dailyBreakdown,
   showStudentColumns = false,
+  title = "Attendance Records",
 }: AttendanceRecordsTableProps) {
   if (filterType === "week" || filterType === "month") {
     return (
@@ -50,7 +52,7 @@ export function AttendanceRecordsTable({
 
   return (
     <div className="gs-card overflow-x-auto p-4">
-      <h3 className="font-semibold">Attendance Records</h3>
+      <h3 className="font-semibold">{title}</h3>
       {records.length ? (
         <table className="mt-3 min-w-full text-sm">
           <thead>
