@@ -80,7 +80,8 @@ export default function SettingsPage() {
   }
 
   return (
-    <form onSubmit={save} className="space-y-6 max-w-3xl">
+    <div className="space-y-6 max-w-3xl">
+    <form onSubmit={save} className="space-y-6">
       <h2 className="text-xl font-semibold">Organization</h2>
       <div className="gs-card p-5 space-y-4">
         <h2 className="font-semibold">School logo</h2>
@@ -138,7 +139,6 @@ export default function SettingsPage() {
           </label>
         ))}
       </div>
-      <EmailClientSection />
       <div className="gs-card p-5 grid md:grid-cols-2 gap-3">
         <h2 className="md:col-span-2 font-semibold">Finance</h2>
         <label className="text-sm">
@@ -154,5 +154,7 @@ export default function SettingsPage() {
       {message ? <p className="text-emerald-700">{message}</p> : null}
       <button className="gs-btn px-4 py-2">Save settings</button>
     </form>
+    <EmailClientSection />
+    </div>
   );
 }

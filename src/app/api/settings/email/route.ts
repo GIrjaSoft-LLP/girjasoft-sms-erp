@@ -1,10 +1,4 @@
-import { z } from "zod";
-import {
-  errorResponse,
-  json,
-  requireWorkspaceContext,
-  scopedQuery,
-} from "@/lib/api/guards";
+import { errorResponse, json, requireWorkspaceContext, scopedQuery } from "@/lib/api/guards";
 import { logWorkspace } from "@/lib/audit";
 import {
   emailClientStatus,
@@ -13,6 +7,8 @@ import {
 } from "@/lib/email/config";
 import { mergeEmailClientPatch } from "@/lib/email/merge-patch";
 import { emailClientPatchSchema } from "@/lib/email/schema";
+import { DEFAULT_EMAIL_CLIENT } from "@/lib/email/types";
+import { resolveEffectiveEmailClient } from "@/lib/email/resolve";
 import { requireWorkspaceAdmin } from "@/lib/workspace-admin";
 import { Settings } from "@/models/workspace";
 
@@ -21,9 +17,20 @@ export async function GET() {
     const ctx = await requireWorkspaceContext();
     requireWorkspaceAdmin(ctx);
     const settings = await Settings.findOne(scopedQuery(ctx.workspaceId)).lean();
-    const config = readEmailClientFromSettings(settings);
-    const publicConfig = toPublicEmailClient(config);
-    return json({ emailClient: publicConfig, status: emailClientStatus(publicConfig) });
+    const workspaceConfig = readEmailClientFromSettings(settings);
+    const publicConfig = toPublicEmailClient(workspaceConfig);
+    const resolved = await resolveEffectiveEmailClient(ctx.workspaceId);
+    const effectivePublic = resolved.config
+      ? toPublicEmailClient(resolved.config)
+      : toPublicEmailClient(DEFAULT_EMAIL_CLIENT);
+
+    return json({
+      emailClient: publicConfig,
+      status: emailClientStatus(publicConfig),
+      effectiveSource: resolved.source,
+      effectiveStatus: emailClientStatus(effectivePublic),
+      effectiveEmailClient: resolved.source === "none" ? null : effectivePublic,
+    });
   } catch (error) {
     return errorResponse(error);
   }
@@ -56,6 +63,11 @@ export async function PATCH(request: Request) {
     );
 
     const publicConfig = toPublicEmailClient(readEmailClientFromSettings(updated));
+    const resolved = await resolveEffectiveEmailClient(ctx.workspaceId);
+    const effectivePublic = resolved.config
+      ? toPublicEmailClient(resolved.config)
+      : toPublicEmailClient(DEFAULT_EMAIL_CLIENT);
+
     await logWorkspace(ctx.session, ctx.workspaceId, body.enabled === false ? "EMAIL_CLIENT_DISABLED" : "EMAIL_CLIENT_UPDATED", "settings", ctx.workspaceId, {
       enabled: publicConfig.enabled,
     });
@@ -63,6 +75,9 @@ export async function PATCH(request: Request) {
     return json({
       emailClient: publicConfig,
       status: emailClientStatus(publicConfig),
+      effectiveSource: resolved.source,
+      effectiveStatus: emailClientStatus(effectivePublic),
+      effectiveEmailClient: resolved.source === "none" ? null : effectivePublic,
       message: "Email client configuration saved successfully.",
     });
   } catch (error) {

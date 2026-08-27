@@ -9,6 +9,7 @@ import { SchoolClass, Section, Subject, Timetable } from "@/models/workspace";
 
 export function hasSchoolWideAttendanceAccess(session: SessionPayload, permissions: string[]) {
   if (isParentLike(session.roleSlugs) || isStudentLike(session.roleSlugs)) return false;
+  if (isTeacherLike(session.roleSlugs)) return false;
   if (
     session.sessionRole === "SUPER_ADMIN" ||
     permissions.includes("attendance.edit") ||
@@ -100,42 +101,17 @@ async function getLegacyTeacherScopes(workspaceId: string, linkedTeacherId: stri
   return { classTeacher, subjectTeacher };
 }
 
-function mergeTeacherScopes(
-  legacy: { classTeacher: ClassTeacherScope[]; subjectTeacher: SubjectTeacherScope[] },
-  admin: { classTeacher: ClassTeacherScope[]; subjectTeacher: SubjectTeacherScope[] },
-) {
-  const classTeacherMap = new Map<string, ClassTeacherScope>();
-  for (const item of [...legacy.classTeacher, ...admin.classTeacher]) {
-    if (!classTeacherMap.has(item.sectionId)) {
-      classTeacherMap.set(item.sectionId, item);
-    }
-  }
-
-  const subjectTeacherMap = new Map<string, SubjectTeacherScope>();
-  for (const item of [...legacy.subjectTeacher, ...admin.subjectTeacher]) {
-    const key = `${item.classId}:${item.sectionId}:${item.subjectId}`;
-    if (!subjectTeacherMap.has(key)) {
-      subjectTeacherMap.set(key, item);
-    }
-  }
-
-  return {
-    classTeacher: [...classTeacherMap.values()],
-    subjectTeacher: [...subjectTeacherMap.values()],
-  };
-}
-
 export async function getTeacherScopes(workspaceId: string, linkedTeacherId: string | null | undefined) {
   if (!linkedTeacherId) {
     return { classTeacher: [] as ClassTeacherScope[], subjectTeacher: [] as SubjectTeacherScope[] };
   }
 
-  const [legacy, admin] = await Promise.all([
-    getLegacyTeacherScopes(workspaceId, linkedTeacherId),
-    getAdminAssignmentScopes(workspaceId, linkedTeacherId),
-  ]);
+  const admin = await getAdminAssignmentScopes(workspaceId, linkedTeacherId);
+  if (admin.classTeacher.length || admin.subjectTeacher.length) {
+    return admin;
+  }
 
-  return mergeTeacherScopes(legacy, admin);
+  return getLegacyTeacherScopes(workspaceId, linkedTeacherId);
 }
 
 export async function resolveAttendanceScopes(
@@ -144,7 +120,15 @@ export async function resolveAttendanceScopes(
   permissions: string[],
   impersonating: boolean,
 ) {
-  if (canManageAllAttendance(session, permissions) || impersonating) {
+  if (impersonating || session.roleSlugs?.includes("workspace_admin")) {
+    return {
+      allAccess: true as const,
+      classTeacher: [] as ClassTeacherScope[],
+      subjectTeacher: [] as SubjectTeacherScope[],
+    };
+  }
+
+  if (canManageAllAttendance(session, permissions)) {
     return {
       allAccess: true as const,
       classTeacher: [] as ClassTeacherScope[],

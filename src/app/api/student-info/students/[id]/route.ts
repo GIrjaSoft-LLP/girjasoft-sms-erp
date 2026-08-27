@@ -3,6 +3,11 @@ import mongoose from "mongoose";
 import { errorResponse, json, requirePerm, requireWorkspaceContext, scopedQuery } from "@/lib/api/guards";
 import { isParentLike } from "@/lib/rbac";
 import { assertPortalCanViewStudent } from "@/lib/parent-access";
+import {
+  assertTeacherRecordAllowed,
+  assertTeacherScopeAllowed,
+  resolveTeacherAssignmentScope,
+} from "@/lib/teacher-scope";
 import { getStudentProfileEnrollment } from "@/lib/promotion/service";
 import { updateCurrentEnrollment } from "@/lib/enrollment/service";
 import { STUDENT_EDITABLE_FIELDS } from "@/config/promotion";
@@ -23,6 +28,14 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
     if (isParentLike(ctx.session.roleSlugs) && !ctx.impersonating) {
       await assertPortalCanViewStudent(ctx, id);
+    }
+
+    const teacherScope = await resolveTeacherAssignmentScope(ctx);
+    if (teacherScope.restricted) {
+      assertTeacherScopeAllowed(teacherScope, {
+        classId: student.classId ? String(student.classId) : undefined,
+        sectionId: student.sectionId ? String(student.sectionId) : undefined,
+      });
     }
 
     let enrollment = { current: null as Record<string, unknown> | null, history: [] as Record<string, unknown>[] };
@@ -162,6 +175,9 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
     const student = await Student.findOne(scopedQuery(ctx.workspaceId, { _id: id }));
     if (!student) return json({ error: "Student not found." }, 404);
+
+    const teacherScope = await resolveTeacherAssignmentScope(ctx);
+    await assertTeacherRecordAllowed(ctx, teacherScope, "students", student.toObject());
 
     for (const key of STUDENT_EDITABLE_FIELDS) {
       if (key in body) {

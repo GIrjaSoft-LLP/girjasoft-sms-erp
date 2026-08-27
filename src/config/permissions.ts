@@ -98,6 +98,9 @@ export const DEFAULT_ROLE_DEFINITIONS: Array<{
     isSystem: true,
     permissions: [
       "students.view",
+      "classes.view",
+      "sections.view",
+      "subjects.view",
       "attendance.view",
       "attendance.create",
       "attendance.edit",

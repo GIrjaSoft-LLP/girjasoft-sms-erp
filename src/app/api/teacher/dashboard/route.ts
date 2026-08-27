@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { errorResponse, json } from "@/lib/api/guards";
 import { requireWorkspaceContext } from "@/lib/api/guards";
 import {
@@ -42,11 +43,14 @@ export async function GET() {
           ? 1
           : 0;
 
-      const pendingHomework = await Homework.countDocuments({
-        workspaceId: ctx.workspaceId,
-        ...(ctx.session.teacherContextClassId ? { classId: ctx.session.teacherContextClassId } : {}),
-        ...(ctx.session.teacherContextSectionId ? { sectionId: ctx.session.teacherContextSectionId } : {}),
-      });
+      const assignedClassIds = [...new Set(assignments.map((item) => item.classId))];
+      const pendingHomework =
+        assignedClassIds.length > 0
+          ? await Homework.countDocuments({
+              workspaceId: ctx.workspaceId,
+              classId: { $in: assignedClassIds.map((id) => new mongoose.Types.ObjectId(id)) },
+            })
+          : 0;
 
       const stored = await loadTeacherContextFromUser(ctx.session.sub);
 

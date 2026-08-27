@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import type { EmailClientConfig, EmailEncryption } from "@/lib/email/types";
 import { decryptSecret } from "@/lib/email/crypto";
+import { resolveEffectiveEmailClient } from "@/lib/email/resolve";
 
 function transportOptions(config: EmailClientConfig) {
   const secure = config.encryption === "ssl" || config.encryption === "tls";
@@ -42,6 +43,25 @@ export async function sendWorkspaceEmail(
     html: options.html,
     replyTo: options.replyTo || config.replyToEmail || undefined,
   });
+}
+
+export async function sendAppEmail(
+  workspaceId: string,
+  options: {
+    to: string;
+    subject: string;
+    text: string;
+    html: string;
+    replyTo?: string;
+  },
+) {
+  const resolved = await resolveEffectiveEmailClient(workspaceId);
+  if (!resolved.config) {
+    throw new Error("Email client is not configured.");
+  }
+  validateEmailClientForSend(resolved.config);
+  await sendWorkspaceEmail(resolved.config, options);
+  return resolved;
 }
 
 export function validateEmailClientForSend(config: EmailClientConfig) {

@@ -127,11 +127,19 @@ export async function assertTeacherAssignmentAllowed(
 
 export async function getTodayTimetableSuggestions(workspaceId: string, teacherId: string) {
   const day = new Date().toLocaleDateString("en-US", { weekday: "long" });
-  const rows = await Timetable.find({
-    workspaceId: new mongoose.Types.ObjectId(workspaceId),
-    teacherId: new mongoose.Types.ObjectId(teacherId),
-    day,
-  }).lean();
+  const scopes = await getTeacherScopes(workspaceId, teacherId);
+  const allowedClassIds = new Set<string>([
+    ...scopes.classTeacher.map((item) => item.classId),
+    ...scopes.subjectTeacher.map((item) => item.classId),
+  ]);
+
+  const rows = (
+    await Timetable.find({
+      workspaceId: new mongoose.Types.ObjectId(workspaceId),
+      teacherId: new mongoose.Types.ObjectId(teacherId),
+      day,
+    }).lean()
+  ).filter((row) => allowedClassIds.has(String(row.classId)));
 
   const classIds = [...new Set(rows.map((row) => String(row.classId)))];
   const sectionIds = [...new Set(rows.map((row) => String(row.sectionId)).filter(Boolean))];

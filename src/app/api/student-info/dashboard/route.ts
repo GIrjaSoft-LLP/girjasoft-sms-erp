@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import {
   errorResponse,
   json,
@@ -5,7 +6,8 @@ import {
   requireWorkspaceContext,
   scopedQuery,
 } from "@/lib/api/guards";
-import { isParentLike } from "@/lib/rbac";
+import { isParentLike, isTeacherLike } from "@/lib/rbac";
+import { resolveTeacherAssignmentScope } from "@/lib/teacher-scope";
 import {
   Attendance,
   Notice,
@@ -93,6 +95,36 @@ export async function GET() {
         },
         children,
         recentStudents: [],
+      });
+    }
+
+    if (isTeacherLike(ctx.session.roleSlugs) && !ctx.impersonating && ctx.session.linkedTeacherId) {
+      const teacherScope = await resolveTeacherAssignmentScope(ctx);
+      const sectionIds = [...teacherScope.sectionIds];
+      const studentQuery =
+        sectionIds.length > 0
+          ? {
+              ...query,
+              sectionId: { $in: sectionIds.map((id) => new mongoose.Types.ObjectId(id)) },
+            }
+          : { ...query, _id: { $in: [] } };
+
+      const [totalStudents, activeStudents, recentRows, recentNotices] = await Promise.all([
+        Student.countDocuments(studentQuery),
+        Student.countDocuments({ ...studentQuery, status: "ACTIVE" }),
+        Student.find(studentQuery).select("name admissionNumber classId sectionId status").sort({ updatedAt: -1 }).limit(8).lean(),
+        Notice.countDocuments(query),
+      ]);
+      const recentStudents = await hydrateStudents(workspaceId, recentRows);
+
+      return json({
+        role: "teacher",
+        stats: {
+          totalStudents,
+          activeStudents,
+          recentNotices,
+        },
+        recentStudents,
       });
     }
 

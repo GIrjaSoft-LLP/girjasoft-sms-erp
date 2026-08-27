@@ -3,14 +3,13 @@ import { z } from "zod";
 import { ApiError, errorResponse, json } from "@/lib/api/guards";
 import { logWorkspace } from "@/lib/audit";
 import { connectMongo } from "@/lib/mongodb";
-import { sendWorkspaceEmail, validateEmailClientForSend } from "@/lib/email/client";
-import { readEmailClientFromSettings } from "@/lib/email/config";
+import { sendAppEmail } from "@/lib/email/client";
 import { buildPasswordResetEmail } from "@/lib/email/templates";
+import { getAppOrigin } from "@/lib/email/resolve";
 import { checkRateLimit, clientIp } from "@/lib/rate-limit";
 import { isWorkspaceExpired } from "@/lib/workspace-validity";
 import { User } from "@/models/identity";
 import { Workspace } from "@/models/platform";
-import { Settings } from "@/models/workspace";
 
 const RESET_MINUTES = 60;
 const GENERIC_MESSAGE =
@@ -47,7 +46,7 @@ export async function POST(request: Request) {
       status: "ACTIVE",
     };
 
-    let workspaceCode = body.workspaceCode?.trim().toUpperCase() ?? "";
+    const workspaceCode = body.workspaceCode?.trim().toUpperCase() ?? "";
     if (workspaceCode) {
       const workspace = await Workspace.findOne({ code: workspaceCode });
       if (!workspace) return json({ message: GENERIC_MESSAGE });
@@ -65,33 +64,12 @@ export async function POST(request: Request) {
       return json({ message: GENERIC_MESSAGE });
     }
 
-    const settings = await Settings.findOne({ workspaceId: workspace._id }).lean();
-    const emailClient = readEmailClientFromSettings(settings);
-
-    if (!emailClient.enabled) {
-      return json({
-        message: GENERIC_MESSAGE,
-        serviceUnavailable:
-          "Password reset email service is currently unavailable. Please contact your system administrator.",
-      });
-    }
-
-    try {
-      validateEmailClientForSend(emailClient);
-    } catch {
-      return json({
-        message: GENERIC_MESSAGE,
-        serviceUnavailable:
-          "Password reset email service is currently unavailable. Please contact your system administrator.",
-      });
-    }
-
     const token = randomBytes(32).toString("base64url");
     user.resetTokenHash = hashResetToken(token);
     user.resetTokenExpiresAt = new Date(Date.now() + RESET_MINUTES * 60 * 1000);
     await user.save();
 
-    const origin = new URL(request.url).origin;
+    const origin = getAppOrigin(request);
     const resetUrl = `${origin}/reset-password?token=${encodeURIComponent(token)}&workspace=${encodeURIComponent(workspace.code)}`;
     const mail = buildPasswordResetEmail({
       userName: user.name,
@@ -101,7 +79,7 @@ export async function POST(request: Request) {
     });
 
     try {
-      await sendWorkspaceEmail(emailClient, {
+      await sendAppEmail(String(workspace._id), {
         to: user.email,
         subject: mail.subject,
         text: mail.text,
@@ -112,7 +90,10 @@ export async function POST(request: Request) {
       user.resetTokenExpiresAt = null;
       await user.save();
       console.error("[forgot-password]", err instanceof Error ? err.message : "send failed");
-      throw new ApiError(503, "Unable to send password reset email right now. Please try again later.");
+      return json({
+        message: GENERIC_MESSAGE,
+        serviceUnavailable: "Unable to send email. Please contact your administrator.",
+      });
     }
 
     await logWorkspace(

@@ -23,6 +23,13 @@ import { ensureTeacherLogin } from "@/lib/teacher-account";
 import { attachProfilePhotoUrls, removeProfilePhoto } from "@/lib/profile-photo";
 import { applySectionPayload, assertSectionHasSeat } from "@/lib/sections";
 import { applySubjectPayload } from "@/lib/subjects";
+import {
+  applyTeacherScopeToQuery,
+  assertTeacherRecordAllowed,
+  assertTeacherScopeAllowed,
+  assertTeacherWritePayload,
+  resolveTeacherAssignmentScope,
+} from "@/lib/teacher-scope";
 
 const STUDENT_LINKED = new Set(["marks", "results", "fees", "payments", "bookIssues", "transportAssignments"]);
 
@@ -117,7 +124,12 @@ export async function listResource(resourceKey: string, request: Request) {
     if (clauses.length) query.$or = clauses;
   }
 
+  const teacherScope = await resolveTeacherAssignmentScope(ctx);
+  if (classId) assertTeacherScopeAllowed(teacherScope, { classId: String(classId) });
+  if (sectionId) assertTeacherScopeAllowed(teacherScope, { sectionId: String(sectionId) });
+
   const visible = applyRecordVisibility(ctx, resourceKey, query);
+  await applyTeacherScopeToQuery(ctx, resourceKey, visible, teacherScope);
   let finder = resource.model.find(visible).sort({ createdAt: -1 }).limit(1000);
   const populate = RESOURCE_POPULATE[resourceKey] ?? [];
   for (const spec of populate) {
@@ -228,6 +240,8 @@ export async function createResource(resourceKey: string, request: Request) {
   if (resourceKey === "students" && body.sectionId) {
     await assertSectionHasSeat(ctx.workspaceId, body.sectionId);
   }
+  const teacherScope = await resolveTeacherAssignmentScope(ctx);
+  await assertTeacherWritePayload(ctx, teacherScope, resourceKey, body);
   const created = await resource.model.create({
     ...body,
     workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
@@ -246,7 +260,10 @@ export async function getResourceById(resourceKey: string, id: string) {
   const item = (await resource.model.findById(id).lean()) as unknown as TenantDoc | null;
   if (!item) throw new ApiError(404, "Record not found.");
   assertSameWorkspace(item.workspaceId, ctx.workspaceId);
+  const teacherScope = await resolveTeacherAssignmentScope(ctx);
+  await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, item as Record<string, unknown>);
   const visible = applyRecordVisibility(ctx, resourceKey, scopedQuery(ctx.workspaceId, { _id: item._id }));
+  await applyTeacherScopeToQuery(ctx, resourceKey, visible, teacherScope);
   const allowed = await resource.model.findOne(visible).lean();
   if (!allowed) throw new ApiError(403, "Forbidden.");
   return json({ item: allowed });
@@ -259,9 +276,12 @@ export async function updateResource(resourceKey: string, id: string, request: R
   requirePerm(ctx, `${resource.permission}.edit`);
   const existing = await resource.model.findById(id);
   if (!existing) throw new ApiError(404, "Record not found.");
-  const current = existing as unknown as TenantDoc & { save: () => Promise<unknown> };
+  const current = existing as unknown as TenantDoc & { save: () => Promise<unknown>; toObject: () => Record<string, unknown> };
   assertSameWorkspace(current.workspaceId, ctx.workspaceId);
+  const teacherScope = await resolveTeacherAssignmentScope(ctx);
+  await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, current.toObject());
   const body = stripClientWorkspaceId(await request.json()) as Record<string, unknown>;
+  await assertTeacherWritePayload(ctx, teacherScope, resourceKey, body);
   if (resourceKey === "parents" && "studentIds" in body) {
     body.studentIds = parseObjectIds(body.studentIds);
   }
@@ -397,8 +417,10 @@ export async function deleteResource(resourceKey: string, id: string) {
   requirePerm(ctx, `${resource.permission}.delete`);
   const existing = await resource.model.findById(id);
   if (!existing) throw new ApiError(404, "Record not found.");
-  const current = existing as unknown as TenantDoc & { deleteOne: () => Promise<unknown> };
+  const current = existing as unknown as TenantDoc & { deleteOne: () => Promise<unknown>; toObject: () => Record<string, unknown> };
   assertSameWorkspace(current.workspaceId, ctx.workspaceId);
+  const teacherScope = await resolveTeacherAssignmentScope(ctx);
+  await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, current.toObject());
   if (resourceKey === "parents") {
     await User.updateMany(
       { workspaceId: ctx.workspaceId, linkedParentId: existing._id },

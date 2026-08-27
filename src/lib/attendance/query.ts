@@ -1,4 +1,7 @@
-import { collectValidObjectIds } from "@/lib/attendance/object-id";
+import mongoose from "mongoose";
+import { ApiError } from "@/lib/api/errors";
+import type { TenantContext } from "@/lib/api/guards";
+import { collectValidObjectIds, isValidObjectId, optionalObjectId } from "@/lib/attendance/object-id";
 import type { AttendanceFilterType, ResolvedAttendanceFilter } from "@/lib/attendance/filters";
 import { resolveAttendanceScopes } from "@/lib/attendance/scope";
 import { assertPortalCanViewStudent, studentIdAllowed } from "@/lib/parent-access";
