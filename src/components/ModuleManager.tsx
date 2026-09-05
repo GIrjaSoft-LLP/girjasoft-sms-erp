@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ExcelActions } from "@/components/ExcelActions";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { PhotoField } from "@/components/PhotoField";
+import { NoticeDetailModal, type NoticeDetail } from "@/components/notices/NoticeDetailModal";
 import { RecordDialog } from "@/components/RecordDialog";
 import { isPrintableDocument } from "@/config/documents";
 import { isExcelModule } from "@/config/excel";
@@ -53,11 +54,13 @@ export function ModuleManager({
   viewPathPrefix,
   allowCreate = true,
   readOnly = false,
+  onCreateClick,
 }: {
   resourceKey: string;
   viewPathPrefix?: string;
   allowCreate?: boolean;
   readOnly?: boolean;
+  onCreateClick?: () => void;
 }) {
   const resource = RESOURCES[resourceKey];
   const filters = RESOURCE_FILTERS[resourceKey] ?? [];
@@ -88,8 +91,27 @@ export function ModuleManager({
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [removePhoto, setRemovePhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
+  const [permissions, setPermissions] = useState<string[] | null>(null);
+  const [noticeDetail, setNoticeDetail] = useState<NoticeDetail | null>(null);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [noticeLoading, setNoticeLoading] = useState(false);
+  const [noticeError, setNoticeError] = useState("");
   const hasIdCards = resourceKey === "students" || resourceKey === "teachers";
   const usesClassPicker = resourceKey === "sections" || resourceKey === "subjects";
+  const isNotices = resourceKey === "notices";
+  const canCreateRecord =
+    allowCreate &&
+    !readOnly &&
+    Boolean(permissions?.includes(`${resource.permission}.create`)) &&
+    (!isNotices || Boolean(permissions?.includes("notices.create")));
+  const canEditRecord =
+    !readOnly &&
+    Boolean(permissions?.includes(`${resource.permission}.edit`)) &&
+    (!isNotices || Boolean(permissions?.includes("notices.edit")));
+  const canDeleteRecord =
+    !readOnly &&
+    Boolean(permissions?.includes(`${resource.permission}.delete`)) &&
+    (!isNotices || Boolean(permissions?.includes("notices.delete")));
 
   const needsLookups = filters.includes("classId") || filters.includes("sectionId");
 
@@ -125,6 +147,27 @@ export function ModuleManager({
     load().catch((err) => setError(err.message));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resourceKey, classId, sectionId, status, date, day]);
+
+  useEffect(() => {
+    api<{ user: { permissions?: string[] } }>("/api/auth/me")
+      .then((data) => setPermissions(data.user.permissions ?? []))
+      .catch(() => setPermissions([]));
+  }, [resourceKey]);
+
+  async function openNotice(id: string) {
+    setNoticeOpen(true);
+    setNoticeLoading(true);
+    setNoticeError("");
+    setNoticeDetail(null);
+    try {
+      const data = await api<{ item: NoticeDetail }>(`/api/notices/${id}/detail`);
+      setNoticeDetail(data.item);
+    } catch (err) {
+      setNoticeError(err instanceof Error ? err.message : "Could not load notice.");
+    } finally {
+      setNoticeLoading(false);
+    }
+  }
 
   const needsTeacherLookup = resourceKey === "sections" || resourceKey === "timetable";
 
@@ -294,7 +337,7 @@ export function ModuleManager({
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {isExcelModule(resourceKey) ? (
+          {isExcelModule(resourceKey) && canCreateRecord ? (
             <ExcelActions
               exportUrl={`/api/excel/${resourceKey}`}
               templateUrl={`/api/excel/${resourceKey}?template=1`}
@@ -312,8 +355,8 @@ export function ModuleManager({
               Download ID Cards ({selected.length})
             </a>
           ) : null}
-          {allowCreate ? (
-            <button type="button" className="gs-btn px-4 py-2" onClick={openCreate}>
+          {canCreateRecord ? (
+            <button type="button" className="gs-btn px-4 py-2" onClick={onCreateClick ?? openCreate}>
               Create
             </button>
           ) : null}
@@ -377,7 +420,11 @@ export function ModuleManager({
               <option value="">All</option>
               {(FILTER_STATUS_OPTIONS[resourceKey] ?? []).map((option) => (
                 <option key={option} value={option}>
-                  {option}
+                  {resourceKey === "fees"
+                    ? ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
+                        option
+                      ] ?? option
+                    : option}
                 </option>
               ))}
             </select>
@@ -459,6 +506,14 @@ export function ModuleManager({
                   <td key={col.key} className="p-3">
                     {col.key === "photo" ? (
                       <Avatar id={String(item._id)} photo={item.photo} name={item.name} kind={resourceKey} />
+                    ) : isNotices && col.key === "title" ? (
+                      <button
+                        type="button"
+                        className="cursor-pointer text-left font-medium text-[#4c7eff] hover:underline"
+                        onClick={() => void openNotice(String(item._id))}
+                      >
+                        {String(item.title ?? "Untitled notice")}
+                      </button>
                     ) : (
                       String(item[col.key] ?? "")
                     )}
@@ -475,15 +530,15 @@ export function ModuleManager({
                       View
                     </a>
                   ) : null}
-                  {!readOnly ? (
-                    <>
-                      <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
-                        Edit
-                      </button>
-                      <button className="text-red-600" onClick={() => remove(String(item._id))}>
-                        Delete
-                      </button>
-                    </>
+                  {canEditRecord ? (
+                    <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
+                      Edit
+                    </button>
+                  ) : null}
+                  {canDeleteRecord ? (
+                    <button className="text-red-600" onClick={() => remove(String(item._id))}>
+                      Delete
+                    </button>
                   ) : null}
                   {hasIdCards ? (
                     <a
@@ -646,7 +701,13 @@ export function ModuleManager({
                   >
                     <option value="">Select</option>
                     {field.options?.map((option) => (
-                      <option key={option}>{option}</option>
+                      <option key={option} value={option}>
+                        {resourceKey === "fees" && field.name === "status"
+                          ? ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
+                              option
+                            ] ?? option
+                          : option}
+                      </option>
                     ))}
                   </select>
                 ) : (
@@ -664,6 +725,8 @@ export function ModuleManager({
                     value={form[field.name] ?? ""}
                     onChange={(e) => setForm((f) => ({ ...f, [field.name]: e.target.value }))}
                     required={field.required}
+                    disabled={resourceKey === "fees" && field.name === "studentName"}
+                    readOnly={resourceKey === "fees" && field.name === "studentName"}
                   />
                 )}
               </label>
@@ -703,6 +766,18 @@ export function ModuleManager({
             </div>
           </form>
         </RecordDialog>
+      ) : null}
+      {noticeOpen ? (
+        <NoticeDetailModal
+          notice={noticeDetail}
+          loading={noticeLoading}
+          error={noticeError}
+          onClose={() => {
+            setNoticeOpen(false);
+            setNoticeDetail(null);
+            setNoticeError("");
+          }}
+        />
       ) : null}
       {credentials ? (
         <CredentialsDialog

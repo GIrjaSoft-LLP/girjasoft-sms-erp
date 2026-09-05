@@ -221,6 +221,12 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       examName: exam?.name ?? "",
       bookTitle: book?.title ?? "",
       feeHead: feeHead?.name ?? "",
+      statusLabel:
+        resourceKey === "fees"
+          ? ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
+              String(item.status ?? "")
+            ] ?? String(item.status ?? "")
+          : undefined,
       leaveTypeName: leaveType?.name ?? "",
       routeName: route?.name ?? "",
       vehicleNumber: vehicle?.number ?? "",

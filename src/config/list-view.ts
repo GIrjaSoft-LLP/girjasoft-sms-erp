@@ -31,6 +31,7 @@ export const RESOURCE_POPULATE: Record<string, PopulateSpec[]> = {
     { path: "subjectId", select: "name" },
     { path: "teacherId", select: "name" },
   ],
+  exams: [{ path: "classId", select: "name" }],
   examSchedules: [
     { path: "examId", select: "name" },
     { path: "subjectId", select: "name" },
@@ -142,7 +143,7 @@ export const FILTER_STATUS_OPTIONS: Record<string, string[]> = {
   classes: ["ACTIVE", "INACTIVE"],
   attendance: ["PRESENT", "ABSENT", "LATE", "LEAVE"],
   teacherAttendance: ["PRESENT", "ABSENT", "LATE", "LEAVE"],
-  exams: ["SCHEDULED", "ONGOING", "COMPLETED"],
+  exams: ["DRAFT", "SCHEDULED", "ACTIVE", "ONGOING", "COMPLETED", "CANCELLED"],
   results: ["PASS", "FAIL"],
   fees: ["PENDING", "PARTIAL", "PAID"],
   payroll: ["DRAFT", "PAID"],

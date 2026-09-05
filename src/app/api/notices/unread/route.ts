@@ -1,4 +1,5 @@
 import { errorResponse, json, requirePerm, requireWorkspaceContext, scopedQuery } from "@/lib/api/guards";
+import { applyNoticeAudienceToQuery } from "@/lib/notices/access";
 import { Notice, Notification } from "@/models/workspace";
 import mongoose from "mongoose";
 
@@ -15,7 +16,9 @@ export async function GET() {
       read: false,
       $or: [{ userId }, { userId: null }],
     });
-    const notices = await Notice.countDocuments(scopedQuery(ctx.workspaceId));
+    const noticeQuery = scopedQuery(ctx.workspaceId);
+    applyNoticeAudienceToQuery(ctx, "notices", noticeQuery);
+    const notices = await Notice.countDocuments(noticeQuery);
     return json({ count: unread > 0 ? unread : notices });
   } catch (error) {
     return errorResponse(error);

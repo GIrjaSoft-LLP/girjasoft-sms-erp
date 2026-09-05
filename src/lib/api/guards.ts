@@ -12,6 +12,7 @@ import { RESOURCE_TO_MODULE } from "@/config/erp-modules";
 import { Workspace } from "@/models/platform";
 import { omitSecrets } from "@/lib/sanitize";
 import { enrichParentSession } from "@/lib/parent-access";
+import { isWorkspaceAdmin } from "@/lib/workspace-admin";
 
 export { ApiError } from "@/lib/api/errors";
 
@@ -197,12 +198,20 @@ export function applyRecordVisibility(
     }
   }
 
-  if (isTeacherLike(session.roleSlugs) && resource === "teachers") {
-    if (!hasPermission(session.permissions, "teachers.edit")) {
+  if (isTeacherLike(session.roleSlugs) && !isWorkspaceAdmin(ctx)) {
+    if (resource === "teachers") {
+      if (!hasPermission(session.permissions, "teachers.edit")) {
+        if (!session.linkedTeacherId) {
+          throw new ApiError(403, "Teacher account is not linked.");
+        }
+        query._id = new mongoose.Types.ObjectId(session.linkedTeacherId);
+      }
+    }
+    if (resource === "leave") {
       if (!session.linkedTeacherId) {
         throw new ApiError(403, "Teacher account is not linked.");
       }
-      query._id = new mongoose.Types.ObjectId(session.linkedTeacherId);
+      query.teacherId = new mongoose.Types.ObjectId(session.linkedTeacherId);
     }
   }
 

@@ -24,6 +24,19 @@ import { attachProfilePhotoUrls, removeProfilePhoto } from "@/lib/profile-photo"
 import { applySectionPayload, assertSectionHasSeat } from "@/lib/sections";
 import { applySubjectPayload } from "@/lib/subjects";
 import {
+  applyFamilyHomeworkVisibility,
+  assertHomeworkMutationAllowed,
+  assertHomeworkVisibleToFamily,
+} from "@/lib/homework/access";
+import { assertMarksMutationAllowed } from "@/lib/marks/access";
+import { assertResultsMutationAllowed } from "@/lib/results/access";
+import { applyTeacherPayrollVisibility, assertTeacherHrConfigAllowed, isTeacherSelfService } from "@/lib/hr/access";
+import { applyTeacherLeave } from "@/lib/hr/leave";
+import { linkPayrollTeacher } from "@/lib/hr/payroll";
+import { assertHomeworkCreateAllowed, assertHomeworkUpdateAllowed } from "@/lib/homework/service";
+import { applyFamilyExamVisibility, resolveLinkedStudentClassScope } from "@/lib/exams/access";
+import { applyNoticeAudienceToQuery, assertNoticeReadable } from "@/lib/notices/access";
+import {
   applyTeacherScopeToQuery,
   assertTeacherRecordAllowed,
   assertTeacherScopeAllowed,
@@ -129,7 +142,11 @@ export async function listResource(resourceKey: string, request: Request) {
   if (sectionId) assertTeacherScopeAllowed(teacherScope, { sectionId: String(sectionId) });
 
   const visible = applyRecordVisibility(ctx, resourceKey, query);
+  await applyFamilyExamVisibility(ctx, resourceKey, visible);
+  await applyFamilyHomeworkVisibility(ctx, resourceKey, visible);
+  applyNoticeAudienceToQuery(ctx, resourceKey, visible);
   await applyTeacherScopeToQuery(ctx, resourceKey, visible, teacherScope);
+  if (resourceKey === "payroll") await applyTeacherPayrollVisibility(ctx, visible);
   let finder = resource.model.find(visible).sort({ createdAt: -1 }).limit(1000);
   const populate = RESOURCE_POPULATE[resourceKey] ?? [];
   for (const spec of populate) {
@@ -240,6 +257,28 @@ export async function createResource(resourceKey: string, request: Request) {
   if (resourceKey === "students" && body.sectionId) {
     await assertSectionHasSeat(ctx.workspaceId, body.sectionId);
   }
+  if (resourceKey === "homework") {
+    await assertHomeworkCreateAllowed(ctx, body);
+  }
+  if (resourceKey === "marks") {
+    assertMarksMutationAllowed(ctx);
+  }
+  if (resourceKey === "results") {
+    assertResultsMutationAllowed(ctx);
+  }
+  if (resourceKey === "leaveTypes") {
+    assertTeacherHrConfigAllowed(ctx);
+  }
+  if (resourceKey === "leave" && isTeacherSelfService(ctx)) {
+    const created = await applyTeacherLeave(ctx, body);
+    await logWorkspace(ctx.session, ctx.workspaceId, "leave.create", "leave", String(created.item._id));
+    return json(created, 201);
+  }
+  if (resourceKey === "payroll") {
+    assertTeacherHrConfigAllowed(ctx);
+    if (!body.status) body.status = "DRAFT";
+    await linkPayrollTeacher(ctx.workspaceId, body);
+  }
   const teacherScope = await resolveTeacherAssignmentScope(ctx);
   await assertTeacherWritePayload(ctx, teacherScope, resourceKey, body);
   const created = await resource.model.create({
@@ -262,11 +301,31 @@ export async function getResourceById(resourceKey: string, id: string) {
   assertSameWorkspace(item.workspaceId, ctx.workspaceId);
   const teacherScope = await resolveTeacherAssignmentScope(ctx);
   await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, item as Record<string, unknown>);
+  if (resourceKey === "notices") {
+    assertNoticeReadable(ctx, item as { audience?: string | null });
+  }
+  if (resourceKey === "homework") {
+    await assertHomeworkVisibleToFamily(ctx, item as { classId?: unknown; sectionId?: unknown });
+  }
+  if (resourceKey === "exams" || resourceKey === "examSchedules") {
+    const familyScope = await resolveLinkedStudentClassScope(ctx);
+    if (familyScope) {
+      const recordClassId = String((item as Record<string, unknown>).classId ?? "");
+      if (recordClassId && recordClassId !== familyScope.classId) {
+        throw new ApiError(403, "Forbidden.");
+      }
+    }
+  }
   const visible = applyRecordVisibility(ctx, resourceKey, scopedQuery(ctx.workspaceId, { _id: item._id }));
+  await applyFamilyExamVisibility(ctx, resourceKey, visible);
+  await applyFamilyHomeworkVisibility(ctx, resourceKey, visible);
+  applyNoticeAudienceToQuery(ctx, resourceKey, visible);
   await applyTeacherScopeToQuery(ctx, resourceKey, visible, teacherScope);
+  if (resourceKey === "payroll") await applyTeacherPayrollVisibility(ctx, visible);
   const allowed = await resource.model.findOne(visible).lean();
   if (!allowed) throw new ApiError(403, "Forbidden.");
-  return json({ item: allowed });
+  const [hydrated] = await hydrateListItems([allowed as Record<string, unknown>], resourceKey);
+  return json({ item: hydrated ?? allowed });
 }
 
 export async function updateResource(resourceKey: string, id: string, request: Request) {
@@ -281,6 +340,26 @@ export async function updateResource(resourceKey: string, id: string, request: R
   const teacherScope = await resolveTeacherAssignmentScope(ctx);
   await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, current.toObject());
   const body = stripClientWorkspaceId(await request.json()) as Record<string, unknown>;
+  if (resourceKey === "homework") {
+    assertHomeworkMutationAllowed(ctx);
+    await assertHomeworkUpdateAllowed(ctx, current.toObject(), body);
+  }
+  if (resourceKey === "marks") {
+    assertMarksMutationAllowed(ctx);
+  }
+  if (resourceKey === "results") {
+    assertResultsMutationAllowed(ctx);
+  }
+  if (resourceKey === "leaveTypes" || resourceKey === "payroll") {
+    assertTeacherHrConfigAllowed(ctx);
+  }
+  if (resourceKey === "payroll") {
+    await linkPayrollTeacher(ctx.workspaceId, body);
+  }
+  if (resourceKey === "leave" && isTeacherSelfService(ctx)) {
+    body.status = current.toObject().status === "PENDING" ? "PENDING" : current.toObject().status;
+    delete body.teacherId;
+  }
   await assertTeacherWritePayload(ctx, teacherScope, resourceKey, body);
   if (resourceKey === "parents" && "studentIds" in body) {
     body.studentIds = parseObjectIds(body.studentIds);
@@ -421,6 +500,18 @@ export async function deleteResource(resourceKey: string, id: string) {
   assertSameWorkspace(current.workspaceId, ctx.workspaceId);
   const teacherScope = await resolveTeacherAssignmentScope(ctx);
   await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, current.toObject());
+  if (resourceKey === "homework") {
+    assertHomeworkMutationAllowed(ctx);
+  }
+  if (resourceKey === "marks") {
+    assertMarksMutationAllowed(ctx);
+  }
+  if (resourceKey === "results") {
+    assertResultsMutationAllowed(ctx);
+  }
+  if (resourceKey === "leaveTypes" || resourceKey === "payroll") {
+    assertTeacherHrConfigAllowed(ctx);
+  }
   if (resourceKey === "parents") {
     await User.updateMany(
       { workspaceId: ctx.workspaceId, linkedParentId: existing._id },

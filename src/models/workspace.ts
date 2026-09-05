@@ -323,14 +323,16 @@ const examSchema = new Schema(
   {
     ...tenantFields(),
     name: { type: String, required: true },
+    classId: { type: Schema.Types.ObjectId, ref: "SchoolClass", default: null },
     academicSessionId: { type: Schema.Types.ObjectId, default: null },
     startDate: { type: String, default: "" },
     endDate: { type: String, default: "" },
-    status: { type: String, default: "SCHEDULED" },
+    status: { type: String, default: "DRAFT" },
   },
   { timestamps: true },
 );
 examSchema.index({ workspaceId: 1, academicSessionId: 1 });
+examSchema.index({ workspaceId: 1, classId: 1 });
 
 const examScheduleSchema = new Schema(
   {
@@ -367,6 +369,7 @@ const resultSchema = new Schema(
     examId: { type: Schema.Types.ObjectId, ref: "Exam", required: true },
     studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
     totalMarks: { type: Number, default: 0 },
+    gainedMarks: { type: Number, default: 0 },
     percentage: { type: Number, default: 0 },
     grade: { type: String, default: "" },
     status: { type: String, default: "PASS" },
@@ -394,6 +397,7 @@ const studentFeeSchema = new Schema(
     studentId: { type: Schema.Types.ObjectId, ref: "Student", required: true },
     feeStructureId: { type: Schema.Types.ObjectId, ref: "FeeStructure", default: null },
     amount: { type: Number, required: true },
+    description: { type: String, default: "" },
     dueDate: { type: String, default: "" },
     status: { type: String, enum: ["PENDING", "PARTIAL", "PAID"], default: "PENDING", index: true },
     paidAmount: { type: Number, default: 0 },
@@ -455,6 +459,8 @@ const payrollSchema = new Schema(
     deductions: { type: Number, default: 0 },
     netPay: { type: Number, required: true },
     status: { type: String, default: "DRAFT" },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null },
+    staffId: { type: Schema.Types.ObjectId, ref: "Staff", default: null },
   },
   { timestamps: true },
 );
@@ -464,6 +470,7 @@ const leaveTypeSchema = new Schema(
   {
     ...tenantFields(),
     name: { type: String, required: true },
+    code: { type: String, default: "" },
     days: { type: Number, default: 0 },
   },
   { timestamps: true },
@@ -474,6 +481,7 @@ const leaveRequestSchema = new Schema(
   {
     ...tenantFields(),
     requesterName: { type: String, required: true },
+    teacherId: { type: Schema.Types.ObjectId, ref: "Teacher", default: null, index: true },
     leaveTypeId: { type: Schema.Types.ObjectId, ref: "LeaveType", default: null },
     fromDate: { type: String, required: true },
     toDate: { type: String, required: true },
@@ -483,6 +491,17 @@ const leaveRequestSchema = new Schema(
   { timestamps: true },
 );
 leaveRequestSchema.index({ workspaceId: 1, status: 1 });
+leaveRequestSchema.index({ workspaceId: 1, teacherId: 1, fromDate: 1 });
+
+const publicHolidaySchema = new Schema(
+  {
+    ...tenantFields(),
+    name: { type: String, required: true },
+    date: { type: String, required: true },
+  },
+  { timestamps: true },
+);
+publicHolidaySchema.index({ workspaceId: 1, date: 1 }, { unique: true });
 
 const bookSchema = new Schema(
   {
@@ -669,18 +688,37 @@ export const AttendanceAudit = model("AttendanceAudit", attendanceAuditSchema, "
 export const TeacherAttendance = model("TeacherAttendance", teacherAttendanceSchema, "teacherAttendance");
 export const Timetable = model("Timetable", timetableSchema, "timetables");
 export const Homework = model("Homework", homeworkSchema, "homework");
+if (mongoose.models.Exam && !mongoose.models.Exam.schema.path("classId")) {
+  delete mongoose.models.Exam;
+}
 export const Exam = model("Exam", examSchema, "exams");
 export const ExamSchedule = model("ExamSchedule", examScheduleSchema, "examSchedules");
 export const Mark = model("Mark", markSchema, "marks");
+if (mongoose.models.Result && !mongoose.models.Result.schema.path("gainedMarks")) {
+  delete mongoose.models.Result;
+}
 export const Result = model("Result", resultSchema, "results");
 export const FeeStructure = model("FeeStructure", feeStructureSchema, "feeStructures");
+if (mongoose.models.StudentFee && !mongoose.models.StudentFee.schema.path("description")) {
+  delete mongoose.models.StudentFee;
+}
 export const StudentFee = model("StudentFee", studentFeeSchema, "studentFees");
 export const FeePayment = model("FeePayment", feePaymentSchema, "feePayments");
 export const Expense = model("Expense", expenseSchema, "expenses");
 export const SalaryStructure = model("SalaryStructure", salaryStructureSchema, "salaryStructures");
+if (mongoose.models.Payroll && !mongoose.models.Payroll.schema.path("teacherId")) {
+  delete mongoose.models.Payroll;
+}
 export const Payroll = model("Payroll", payrollSchema, "payroll");
+if (mongoose.models.LeaveType && !mongoose.models.LeaveType.schema.path("code")) {
+  delete mongoose.models.LeaveType;
+}
 export const LeaveType = model("LeaveType", leaveTypeSchema, "leaveTypes");
+if (mongoose.models.LeaveRequest && !mongoose.models.LeaveRequest.schema.path("teacherId")) {
+  delete mongoose.models.LeaveRequest;
+}
 export const LeaveRequest = model("LeaveRequest", leaveRequestSchema, "leaveRequests");
+export const PublicHoliday = model("PublicHoliday", publicHolidaySchema, "publicHolidays");
 export const Book = model("Book", bookSchema, "books");
 export const BookIssue = model("BookIssue", bookIssueSchema, "bookIssues");
 export const Vehicle = model("Vehicle", vehicleSchema, "vehicles");

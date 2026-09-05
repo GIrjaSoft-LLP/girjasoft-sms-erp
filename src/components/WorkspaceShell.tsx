@@ -200,7 +200,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex h-dvh max-h-dvh flex-col overflow-hidden gs-shell-bg">
       {dash?.impersonating ? (
-        <div className="flex shrink-0 justify-between bg-amber-400 px-4 py-2 text-sm font-semibold text-[#0b1b3a]">
+        <div className="flex shrink-0 justify-between bg-amber-400 px-4 py-2 text-sm font-semibold text-[#0b1b3a] print:hidden">
           <span>
             Viewing Workspace: {dash.workspace.schoolName} ({dash.workspace.code})
           </span>
@@ -209,15 +209,17 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       ) : null}
-      <AppHeader
-        user={me}
-        workspace={dash?.workspace}
-        enabledModuleIds={enabledModuleIds}
-        onToggleSidebar={() => setSidebarOpen((open) => !open)}
-        onChangePassword={() => setPasswordOpen(true)}
-        onSignOut={() => void logout()}
-      />
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="print:hidden">
+        <AppHeader
+          user={me}
+          workspace={dash?.workspace}
+          enabledModuleIds={enabledModuleIds}
+          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onChangePassword={() => setPasswordOpen(true)}
+          onSignOut={() => void logout()}
+        />
+      </div>
+      <div className="flex min-h-0 flex-1 overflow-hidden print:overflow-visible">
         <aside
           className={`${
             sidebarOpen ? "w-56" : "w-0"
@@ -279,7 +281,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
         </aside>
         <main className="gs-main-scroll min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
           {teacherContextLabels ? (
-            <div className="gs-banner-info border-b px-6 py-2 text-sm">
+            <div className="gs-banner-info border-b px-6 py-2 text-sm print:hidden">
               Today&apos;s Class: {teacherContextLabels.className}-{teacherContextLabels.sectionName}
               {teacherContextLabels.subjectName ? ` · ${teacherContextLabels.subjectName}` : ""}
               <button type="button" className="ml-3 underline" style={{ color: "var(--accent)" }} onClick={() => setTeacherContextOpen(true)}>
@@ -290,7 +292,9 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           <div className="p-6">{children}</div>
         </main>
       </div>
-      <AppFooter />
+      <div className="print:hidden">
+        <AppFooter />
+      </div>
       {passwordOpen ? (
         <PasswordDialog
           title="Change password"

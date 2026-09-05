@@ -14,7 +14,7 @@ export const FINANCE_NAV: NavLink[] = [
   { href: "/finance/fees", label: "Fees", permission: "fees.view" },
   { href: "/finance/payments", label: "Payments", permission: "payments.view" },
   { href: "/finance/expenses", label: "Expenses", permission: "expenses.view" },
-  { href: "/finance/payroll", label: "Payroll", permission: "payroll.view" },
+  { href: "/finance/payroll", label: "Payroll", permission: "payroll.create" },
 ];
 
 export const SETTINGS_NAV: NavLink[] = [
@@ -25,6 +25,7 @@ export const SETTINGS_NAV: NavLink[] = [
   { href: "/settings/roles", label: "Roles", permission: "roles.view" },
   { href: "/settings/admission", label: "Admission", permission: "admissions.view" },
   { href: "/settings/student-info", label: "Student Info", permission: "settings.view" },
+  { href: "/settings/examination", label: "Examination", permission: "marks.edit" },
   { href: "/settings/theme", label: "Theme", permission: "settings.view" },
 ];
 

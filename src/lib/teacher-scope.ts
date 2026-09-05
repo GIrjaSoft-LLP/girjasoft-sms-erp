@@ -5,6 +5,7 @@ import { isTeacherLike } from "@/lib/rbac";
 import { isWorkspaceAdmin } from "@/lib/workspace-admin";
 import { getTeacherScopes } from "@/lib/attendance/scope";
 import { Student } from "@/models/workspace";
+import { applyTeacherExamScheduleScope } from "@/lib/exams/access";
 
 export type TeacherAssignmentScope = {
   restricted: boolean;
@@ -147,9 +148,11 @@ export async function applyTeacherScopeToQuery(
     case "timetable":
     case "attendance":
     case "exams":
-    case "examSchedules":
     case "teacherAttendance":
       query.classId = { $in: classObjectIds };
+      break;
+    case "examSchedules":
+      await applyTeacherExamScheduleScope(ctx, query, classObjectIds);
       break;
     case "marks":
     case "results":

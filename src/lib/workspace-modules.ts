@@ -5,7 +5,7 @@ type WorkspaceLike = {
   moduleConfigVersion?: number | null;
 };
 
-export const CURRENT_MODULE_CONFIG_VERSION = 3;
+export const CURRENT_MODULE_CONFIG_VERSION = 5;
 
 /** Modules added after initial rollout — enabled once per workspace when config version migrates. */
 const MODULE_VERSION_ADDITIONS: Record<number, string[]> = {
