@@ -10,6 +10,7 @@ import { ensureWorkspaceReady } from "@/lib/workspace-setup-server";
 import { resolveWorkspacePermissionsForUser, shouldAllowAllModules } from "@/lib/session-permissions";
 import { RESOURCE_TO_MODULE } from "@/config/erp-modules";
 import { Workspace } from "@/models/platform";
+import { isWorkspaceArchived, WORKSPACE_ARCHIVED_LOGIN_MESSAGE } from "@/lib/platform/workspace-archive";
 import { omitSecrets } from "@/lib/sanitize";
 import { enrichParentSession } from "@/lib/parent-access";
 import { isWorkspaceAdmin } from "@/lib/workspace-admin";
@@ -92,6 +93,9 @@ export async function requireWorkspaceContext(): Promise<TenantContext> {
     if (!workspace) {
       throw new ApiError(404, "Workspace not found.");
     }
+    if (isWorkspaceArchived(workspace.status)) {
+      throw new ApiError(403, WORKSPACE_ARCHIVED_LOGIN_MESSAGE);
+    }
     const enabledModules = await ensureWorkspaceReady(workspace);
     const allowAllModules = shouldAllowAllModules(session, true);
     return {
@@ -111,6 +115,9 @@ export async function requireWorkspaceContext(): Promise<TenantContext> {
   const workspace = await Workspace.findById(session.workspaceId);
   if (!workspace) {
     throw new ApiError(404, "Workspace not found.");
+  }
+  if (isWorkspaceArchived(workspace.status)) {
+    throw new ApiError(403, WORKSPACE_ARCHIVED_LOGIN_MESSAGE);
   }
   if (workspace.status !== "ACTIVE") {
     throw new ApiError(403, "Workspace is not active.");

@@ -7,6 +7,7 @@ import { hashPassword } from "@/lib/password";
 import { Workspace } from "@/models/platform";
 import { Role, User } from "@/models/identity";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { archiveWorkspace } from "@/lib/platform/workspace-archive";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -54,7 +55,14 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (body.validityTill) {
       current.validityTill = new Date(body.validityTill);
     }
-    Object.assign(current, { ...body, validityTill: current.validityTill });
+    if (body.status === "ARCHIVED" && current.status !== "ARCHIVED") {
+      const archived = await archiveWorkspace(session, id);
+      return json({ item: archived.workspace });
+    }
+    if (current.status === "ARCHIVED" && body.status && body.status !== "ARCHIVED") {
+      throw new ApiError(400, "Restore this workspace from Archived instead of changing its status here.");
+    }
+    Object.assign(current, { ...body, validityTill: current.validityTill, status: body.status ?? current.status });
     await current.save();
     if (body.validityTill) {
       await logPlatform(
@@ -79,14 +87,8 @@ export async function DELETE(_request: Request, ctx: Ctx) {
   try {
     const session = await requirePlatformPerm("platform.workspaces.delete");
     const { id } = await ctx.params;
-    const workspace = await Workspace.findByIdAndUpdate(
-      id,
-      { status: "ARCHIVED" },
-      { new: true },
-    );
-    if (!workspace) throw new ApiError(404, "Workspace not found.");
-    await logPlatform(session, "WORKSPACE_ARCHIVED", {}, id);
-    return json({ item: workspace });
+    const archived = await archiveWorkspace(session, id);
+    return json({ item: archived.workspace, userCount: archived.userCount });
   } catch (error) {
     return errorResponse(error);
   }

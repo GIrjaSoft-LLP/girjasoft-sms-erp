@@ -3,7 +3,7 @@ import { ApiError, errorResponse, json } from "@/lib/api/guards";
 import { logWorkspace } from "@/lib/audit";
 import { pushWorkflowEvent } from "@/lib/admissions/audit";
 import { convertApplicationToStudent } from "@/lib/admissions/convert";
-import { generateAdmissionNumber, computeFeeTotals } from "@/lib/admissions/numbers";
+import { allocateAdmissionNumber, computeFeeTotals } from "@/lib/admissions/numbers";
 import { getAdmissionSettings } from "@/lib/admissions/settings";
 import { requireAdmissionContext } from "@/lib/admissions/guard";
 import { AdmissionApplication } from "@/models/admissions";
@@ -70,10 +70,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
           );
           if (pending) throw new ApiError(400, "Mandatory documents must be verified before approval.");
         }
-        const admissionNumber =
-          application.admissionNumber ||
-          (await generateAdmissionNumber(ctx.workspaceId, application.academicSessionId));
-        application.admissionNumber = admissionNumber;
+        application.admissionNumber = await allocateAdmissionNumber(
+          ctx.workspaceId,
+          application.academicSessionId,
+          application.admissionNumber,
+        );
         pushWorkflowEvent(application, ctx.session, "APPROVED", "APPROVED", body.remarks ?? "Admission approved");
         if (Number(application.fees?.due ?? 0) > 0) {
           pushWorkflowEvent(application, ctx.session, "PAYMENT_REQUIRED", "PAYMENT_PENDING", "Awaiting payment");
@@ -113,12 +114,11 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         if (settings.requirePaymentBeforeConfirm && Number(application.fees?.due ?? 0) > 0) {
           throw new ApiError(400, "Collect outstanding fees before confirming admission.");
         }
-        if (!application.admissionNumber) {
-          application.admissionNumber = await generateAdmissionNumber(
-            ctx.workspaceId,
-            application.academicSessionId,
-          );
-        }
+        application.admissionNumber = await allocateAdmissionNumber(
+          ctx.workspaceId,
+          application.academicSessionId,
+          application.admissionNumber,
+        );
         pushWorkflowEvent(application, ctx.session, "CONFIRMED", "CONFIRMED", body.remarks ?? "Admission confirmed");
         if (settings.autoCreateStudent && !application.convertedStudentId) {
           await application.save();

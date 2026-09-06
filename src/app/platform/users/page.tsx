@@ -18,6 +18,7 @@ export default function PlatformUsersPage() {
   const [users, setUsers] = useState<PlatformUser[]>([]);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
   const [passwordUser, setPasswordUser] = useState<PlatformUser | null>(null);
 
   async function load() {
@@ -42,6 +43,13 @@ export default function PlatformUsersPage() {
 
   const canEdit = permissions.includes("platform.workspaceUsers.edit");
   const canDelete = permissions.includes("platform.workspaceUsers.delete");
+  const filtered = users.filter((user) => {
+    const term = query.trim().toLowerCase();
+    if (!term) return true;
+    return [user.name, user.email, user.workspace?.schoolName, user.workspace?.code]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(term));
+  });
 
   return (
     <div className="space-y-6">
@@ -50,6 +58,12 @@ export default function PlatformUsersPage() {
         <p className="text-sm text-slate-500">Change passwords or remove users across workspaces. Super Admin is never listed.</p>
       </div>
       {error ? <p className="text-red-600">{error}</p> : null}
+      <input
+        className="gs-input max-w-md"
+        placeholder="Search by name, email, or workspace"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
       <div className="gs-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left">
@@ -63,7 +77,7 @@ export default function PlatformUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((user) => (
+            {filtered.map((user) => (
               <tr key={user._id} className="border-t">
                 <td className="p-3">{user.name}</td>
                 <td className="p-3">{user.email}</td>
@@ -88,6 +102,13 @@ export default function PlatformUsersPage() {
                 ) : null}
               </tr>
             ))}
+            {!filtered.length ? (
+              <tr>
+                <td className="p-6 text-slate-500" colSpan={canEdit || canDelete ? 6 : 5}>
+                  No workspace users found.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>

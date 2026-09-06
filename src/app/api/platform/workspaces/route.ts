@@ -21,6 +21,7 @@ import {
 import { PlatformAuditLog, Workspace } from "@/models/platform";
 import { Role, User } from "@/models/identity";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { activeWorkspaceQuery } from "@/lib/platform/workspace-archive";
 import { workspaceSubscription } from "@/lib/workspace-validity";
 import {
   Student,
@@ -56,7 +57,7 @@ const workspaceSchema = z.object({
 export async function GET() {
   try {
     await requirePlatformPerm("platform.workspaces.view");
-    const workspaces = await Workspace.find().sort({ createdAt: -1 }).lean();
+    const workspaces = await Workspace.find(activeWorkspaceQuery()).sort({ createdAt: -1 }).lean();
     const rows = await Promise.all(
       workspaces.map(async (workspace) => {
         const workspaceId = workspace._id;

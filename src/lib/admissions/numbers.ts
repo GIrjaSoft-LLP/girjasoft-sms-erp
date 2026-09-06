@@ -1,9 +1,28 @@
+import { ApiError } from "@/lib/api/guards";
 import { AdmissionApplication, AdmissionEnquiry } from "@/models/admissions";
-import { AcademicSession } from "@/models/workspace";
+import { AcademicSession, Student } from "@/models/workspace";
 import { getAdmissionSettings } from "@/lib/admissions/settings";
 
 function padSeq(value: number, size = 4) {
   return String(value).padStart(size, "0");
+}
+
+function prefixRegex(prefix: string) {
+  return new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
+}
+
+function trailingSeq(value?: string | null) {
+  return Number(String(value ?? "").match(/(\d+)$/)?.[1] ?? 0);
+}
+
+async function maxTrailingSeq(
+  workspaceId: string,
+  model: { find: (query: Record<string, unknown>) => { select: (field: string) => { lean: () => Promise<Array<Record<string, unknown>>> } } },
+  field: string,
+  prefix: string,
+) {
+  const rows = await model.find({ workspaceId, [field]: prefixRegex(prefix) }).select(field).lean();
+  return rows.reduce((max, row) => Math.max(max, trailingSeq(String(row[field] ?? ""))), 0);
 }
 
 async function sessionLabel(workspaceId: string, academicSessionId?: string | null) {
@@ -18,16 +37,8 @@ export async function nextSequenceNumber(
   field: "enquiryNumber" | "applicationNumber",
   prefix: string,
 ) {
-  const regex = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
-  const latest = await model
-    .find({ workspaceId, [field]: regex })
-    .sort({ createdAt: -1 })
-    .limit(1)
-    .select(field)
-    .lean();
-  const last = latest[0]?.[field as keyof (typeof latest)[0]] as string | undefined;
-  const seq = last ? Number(last.match(/(\d+)$/)?.[1] ?? 0) + 1 : 1;
-  return padSeq(seq);
+  const max = await maxTrailingSeq(workspaceId, model, field, prefix);
+  return padSeq(max + 1);
 }
 
 export async function generateEnquiryNumber(workspaceId: string, academicSessionId?: string | null) {
@@ -54,18 +65,29 @@ export async function generateAdmissionNumber(workspaceId: string, academicSessi
     .replace("{session}", session)
     .replace("{seq}", "")
     .replace(/\/$/, "");
-  const regex = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`);
-  const latest = await AdmissionApplication.find({
-    workspaceId,
-    admissionNumber: regex,
-  })
-    .sort({ createdAt: -1 })
-    .limit(1)
-    .select("admissionNumber")
-    .lean();
-  const last = latest[0]?.admissionNumber;
-  const seq = last ? Number(last.match(/(\d+)$/)?.[1] ?? 0) + 1 : 1;
-  return `${prefix}/${padSeq(seq)}`;
+  const [applicationMax, studentMax] = await Promise.all([
+    maxTrailingSeq(workspaceId, AdmissionApplication, "admissionNumber", `${prefix}/`),
+    maxTrailingSeq(workspaceId, Student, "admissionNumber", `${prefix}/`),
+  ]);
+  return `${prefix}/${padSeq(Math.max(applicationMax, studentMax) + 1)}`;
+}
+
+export async function allocateAdmissionNumber(
+  workspaceId: string,
+  academicSessionId?: string | null,
+  preferred?: string | null,
+) {
+  const reserved = preferred?.trim();
+  if (reserved) {
+    const taken = await Student.findOne({ workspaceId, admissionNumber: reserved }).select("_id").lean();
+    if (!taken) return reserved;
+  }
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const next = await generateAdmissionNumber(workspaceId, academicSessionId);
+    const taken = await Student.findOne({ workspaceId, admissionNumber: next }).select("_id").lean();
+    if (!taken) return next;
+  }
+  throw new ApiError(409, "Could not allocate a unique admission number.");
 }
 
 export function computeFeeTotals(fees: {

@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import { ApiError } from "@/lib/api/guards";
 import { logWorkspace } from "@/lib/audit";
-import { generateAdmissionNumber } from "@/lib/admissions/numbers";
+import { allocateAdmissionNumber } from "@/lib/admissions/numbers";
 import { getAdmissionSettings } from "@/lib/admissions/settings";
 import { ensureParentLogin, syncParentStudents } from "@/lib/parent-account";
 import type { SessionPayload } from "@/lib/session";
@@ -52,18 +52,15 @@ export async function convertApplicationToStudent(
     throw new ApiError(400, "Outstanding admission fees must be collected before conversion.");
   }
 
-  const admissionNumber =
-    application.admissionNumber || (await generateAdmissionNumber(workspaceId, application.academicSessionId));
+  const admissionNumber = await allocateAdmissionNumber(
+    workspaceId,
+    application.academicSessionId,
+    application.admissionNumber,
+  );
   const studentName = studentFullName(application.student ?? {});
   const address = application.sameAsPermanent
     ? formatAddress(application.permanentAddress ?? {})
     : formatAddress(application.currentAddress ?? {});
-
-  const existingStudent = await Student.findOne({
-    workspaceId,
-    admissionNumber,
-  });
-  if (existingStudent) throw new ApiError(409, "Admission number already exists.");
 
   const parentName = application.father?.name || application.mother?.name || "Parent";
   const parentPhone = application.father?.mobile || application.mother?.mobile || "";

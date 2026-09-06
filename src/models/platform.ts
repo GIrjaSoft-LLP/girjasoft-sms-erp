@@ -26,6 +26,10 @@ const workspaceSchema = new Schema(
     adminUserId: { type: Schema.Types.ObjectId, ref: "User", default: null },
     enabledModules: { type: [String], default: [] },
     moduleConfigVersion: { type: Number, default: 0 },
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: Schema.Types.ObjectId, default: null },
+    archivedByEmail: { type: String, default: "" },
+    statusBeforeArchive: { type: String, default: "" },
   },
   { timestamps: true },
 );
@@ -111,6 +115,14 @@ if (!Workspace.schema.path("enabledModules")) {
 }
 if (!Workspace.schema.path("moduleConfigVersion")) {
   Workspace.schema.add({ moduleConfigVersion: { type: Number, default: 0 } });
+}
+if (!Workspace.schema.path("archivedAt")) {
+  Workspace.schema.add({
+    archivedAt: { type: Date, default: null },
+    archivedBy: { type: Schema.Types.ObjectId, default: null },
+    archivedByEmail: { type: String, default: "" },
+    statusBeforeArchive: { type: String, default: "" },
+  });
 }
 if (!PlatformAdmin.schema.path("photo")) {
   PlatformAdmin.schema.add({ photo: { type: String, default: "" } });

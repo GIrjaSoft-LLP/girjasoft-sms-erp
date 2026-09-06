@@ -89,12 +89,15 @@ export default function EditWorkspacePage() {
         </div>
         <label className="text-sm">
           Status
-          <select className="gs-input mt-1" value={form.status} disabled={!canEdit} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-            <option value="ACTIVE">ACTIVE</option>
-            <option value="SUSPENDED">SUSPENDED</option>
-            <option value="DISABLED">DISABLED</option>
-            <option value="ARCHIVED">ARCHIVED</option>
-          </select>
+          {form.status === "ARCHIVED" ? (
+            <p className="gs-input mt-1 bg-slate-50">Archived — restore from Archived → Workspace</p>
+          ) : (
+            <select className="gs-input mt-1" value={form.status} disabled={!canEdit} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+              <option value="ACTIVE">ACTIVE</option>
+              <option value="SUSPENDED">SUSPENDED</option>
+              <option value="DISABLED">DISABLED</option>
+            </select>
+          )}
         </label>
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}

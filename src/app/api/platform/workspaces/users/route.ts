@@ -3,14 +3,18 @@ import { User } from "@/models/identity";
 import { Workspace } from "@/models/platform";
 import { SUPER_ADMIN_EMAIL } from "@/config/branding";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { activeWorkspaceQuery } from "@/lib/platform/workspace-archive";
 
 export async function GET() {
   try {
     await requirePlatformPerm("platform.workspaceUsers.view");
-    const workspaces = await Workspace.find().select("name code schoolName").lean();
-    const users = await User.find(excludePortalAccounts())
-      .select("name email username workspaceId status lastLoginAt")
-      .lean();
+    const workspaces = await Workspace.find(activeWorkspaceQuery()).select("name code schoolName").lean();
+    const workspaceIds = workspaces.map((workspace) => workspace._id);
+    const users = workspaceIds.length
+      ? await User.find({ workspaceId: { $in: workspaceIds }, ...excludePortalAccounts() })
+          .select("name email username workspaceId status lastLoginAt")
+          .lean()
+      : [];
     return json({
       items: users
         .filter((user) => user.email?.toLowerCase() !== SUPER_ADMIN_EMAIL.toLowerCase())

@@ -4,6 +4,7 @@ import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/gu
 import { logPlatform } from "@/lib/audit";
 import { hashPassword } from "@/lib/password";
 import { User } from "@/models/identity";
+import { Workspace } from "@/models/platform";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -22,6 +23,12 @@ export async function PATCH(request: Request, ctx: Ctx) {
         status: z.enum(["ACTIVE", "DISABLED"]).optional(),
       })
       .parse(await request.json());
+    if (body.status === "ACTIVE") {
+      const workspace = await Workspace.findById(user.workspaceId).select("status");
+      if (workspace?.status === "ARCHIVED" || user.status === "ARCHIVED") {
+        throw new ApiError(400, "Restore the archived workspace before reactivating this user.");
+      }
+    }
     if (body.password) user.passwordHash = await hashPassword(body.password);
     if (body.status) user.status = body.status;
     await user.save();

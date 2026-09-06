@@ -1,5 +1,6 @@
 import { errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { excludePortalAccounts } from "@/lib/parent-account";
+import { activeWorkspaceQuery, archivedWorkspaceQuery } from "@/lib/platform/workspace-archive";
 import { workspaceSubscription } from "@/lib/workspace-validity";
 import { User } from "@/models/identity";
 import { Workspace } from "@/models/platform";
@@ -8,6 +9,10 @@ import { Staff, Student, Teacher } from "@/models/workspace";
 export async function GET() {
   try {
     await requirePlatformPerm("platform.workspaces.view");
+    const [activeWorkspaceIds, archivedWorkspaceIds] = await Promise.all([
+      Workspace.find(activeWorkspaceQuery()).distinct("_id"),
+      Workspace.find(archivedWorkspaceQuery()).distinct("_id"),
+    ]);
     const [
       totalWorkspaces,
       activeWorkspaces,
@@ -15,6 +20,7 @@ export async function GET() {
       suspendedWorkspaces,
       archivedWorkspaces,
       totalUsers,
+      archivedUsers,
       totalStudents,
       totalTeachers,
       totalStaff,
@@ -25,11 +31,15 @@ export async function GET() {
       Workspace.countDocuments({ status: "DISABLED" }),
       Workspace.countDocuments({ status: "SUSPENDED" }),
       Workspace.countDocuments({ status: "ARCHIVED" }),
-      User.countDocuments(excludePortalAccounts()),
+      User.countDocuments({
+        ...excludePortalAccounts(),
+        workspaceId: { $in: activeWorkspaceIds },
+      }),
+      User.countDocuments({ workspaceId: { $in: archivedWorkspaceIds } }),
       Student.countDocuments(),
       Teacher.countDocuments(),
       Staff.countDocuments(),
-      Workspace.find().sort({ lastActivityAt: -1 }).limit(25).lean(),
+      Workspace.find(activeWorkspaceQuery()).sort({ lastActivityAt: -1 }).limit(25).lean(),
     ]);
 
     const overview = await Promise.all(
@@ -65,6 +75,7 @@ export async function GET() {
         suspendedWorkspaces,
         archivedWorkspaces,
         totalUsers,
+        archivedUsers,
         totalStudents,
         totalTeachers,
         totalStaff,

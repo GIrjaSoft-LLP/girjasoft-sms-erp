@@ -530,7 +530,11 @@ export function ModuleManager({
                       View
                     </a>
                   ) : null}
-                  {canEditRecord ? (
+                  {canEditRecord && viewPathPrefix && resourceKey === "students" ? (
+                    <a className="text-[#4c7eff]" href={`${viewPathPrefix}/${String(item._id)}/edit`}>
+                      Edit
+                    </a>
+                  ) : canEditRecord ? (
                     <button className="text-[#4c7eff]" onClick={() => openEdit(item)}>
                       Edit
                     </button>

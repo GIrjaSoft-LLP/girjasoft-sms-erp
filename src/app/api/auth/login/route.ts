@@ -11,6 +11,7 @@ import { enrichParentSession } from "@/lib/parent-access";
 import { enrichTeacherSession } from "@/lib/teacher-context";
 import { buildPlatformSession, ensurePlatformSystemRoles } from "@/lib/platform-access";
 import { isWorkspaceExpired } from "@/lib/workspace-validity";
+import { isWorkspaceArchived, WORKSPACE_ARCHIVED_LOGIN_MESSAGE } from "@/lib/platform/workspace-archive";
 import {
   cookieOptions,
   SESSION_COOKIE,
@@ -125,10 +126,12 @@ export async function POST(request: Request) {
     const user = matches[0];
     const valid = await verifyPassword(parsed.password, user.passwordHash);
     if (!valid) throw new ApiError(401, "Invalid credentials.");
-    if (user.status !== "ACTIVE") throw new ApiError(403, "Account disabled.");
-
     const workspace = await Workspace.findById(user.workspaceId);
     if (!workspace) throw new ApiError(404, "Workspace not found.");
+    if (isWorkspaceArchived(workspace.status) || user.status === "ARCHIVED") {
+      throw new ApiError(403, WORKSPACE_ARCHIVED_LOGIN_MESSAGE);
+    }
+    if (user.status !== "ACTIVE") throw new ApiError(403, "Account disabled.");
     if (workspace.status !== "ACTIVE") {
       throw new ApiError(403, "Workspace is not active.");
     }

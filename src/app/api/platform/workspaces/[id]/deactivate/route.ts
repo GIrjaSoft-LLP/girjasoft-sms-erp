@@ -8,12 +8,13 @@ export async function POST(_request: Request, ctx: Ctx) {
   try {
     const session = await requirePlatformPerm("platform.workspaces.manage");
     const { id } = await ctx.params;
-    const workspace = await Workspace.findByIdAndUpdate(
-      id,
-      { status: "SUSPENDED" },
-      { new: true },
-    );
+    const workspace = await Workspace.findById(id);
     if (!workspace) throw new ApiError(404, "Workspace not found.");
+    if (workspace.status === "ARCHIVED") {
+      throw new ApiError(400, "Restore this workspace from Archived before changing its status.");
+    }
+    workspace.status = "SUSPENDED";
+    await workspace.save();
     await logPlatform(session, "WORKSPACE_SUSPENDED", {}, id);
     return json({ item: workspace });
   } catch (error) {

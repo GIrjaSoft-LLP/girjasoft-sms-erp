@@ -7,6 +7,7 @@ import { AppFooter } from "@/components/AppFooter";
 import { AppHeader } from "@/components/AppHeader";
 import { PasswordDialog } from "@/components/PasswordDialog";
 import { PlatformExpiryBanner } from "@/components/PlatformExpiryBanner";
+import { SidebarNavGroup } from "@/components/SidebarNavGroup";
 import { PLATFORM_NAV } from "@/config/nav";
 import { api } from "@/lib/client";
 import { useResponsiveSidebar } from "@/lib/use-responsive-sidebar";
@@ -55,7 +56,15 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   const nav = useMemo(() => {
     const perms = user?.permissions ?? [];
     const all = user?.sessionRole === "SUPER_ADMIN";
-    return PLATFORM_NAV.filter((item) => all || perms.includes(item.permission));
+    return PLATFORM_NAV.flatMap((item) => {
+      if (item.children?.length) {
+        const children = item.children.filter((child) => all || perms.includes(child.permission));
+        if (!children.length) return [];
+        return [{ ...item, children }];
+      }
+      if (all || perms.includes(item.permission)) return [item];
+      return [];
+    });
   }, [user]);
 
   async function logout() {
@@ -89,11 +98,17 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
         >
           <div className="flex h-full w-56 flex-col">
             <nav className="gs-sidebar-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-2 text-sm">
-              {nav.map((item) => {
-                const active = item.exact
-                  ? pathname === item.href
-                  : pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return (
+              {nav.map((item) =>
+                item.children?.length ? (
+                  <SidebarNavGroup
+                    key={item.href}
+                    item={item}
+                    links={item.children}
+                    onNavigate={() => {
+                      if (mobileOpen) setSidebarOpen(false);
+                    }}
+                  />
+                ) : (
                   <Link
                     key={item.href}
                     href={item.href}
@@ -101,13 +116,15 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
                       if (mobileOpen) setSidebarOpen(false);
                     }}
                     className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
-                      active ? "gs-sidebar-link-active" : ""
+                      (item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`))
+                        ? "gs-sidebar-link-active"
+                        : ""
                     }`}
                   >
                     {item.label}
                   </Link>
-                );
-              })}
+                ),
+              )}
             </nav>
           </div>
         </aside>

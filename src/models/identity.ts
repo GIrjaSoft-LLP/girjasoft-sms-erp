@@ -11,7 +11,9 @@ const userSchema = new Schema(
     department: { type: String, default: "" },
     employeeId: { type: String, default: "" },
     roleIds: [{ type: Schema.Types.ObjectId, ref: "Role" }],
-    status: { type: String, enum: ["ACTIVE", "DISABLED"], default: "ACTIVE", index: true },
+    status: { type: String, enum: ["ACTIVE", "DISABLED", "ARCHIVED"], default: "ACTIVE", index: true },
+    archivedAt: { type: Date, default: null },
+    statusBeforeArchive: { type: String, default: "" },
     accountType: { type: String, enum: ["WORKSPACE"], default: "WORKSPACE" },
     lastLoginAt: { type: Date, default: null },
     linkedStudentId: { type: Schema.Types.ObjectId, ref: "Student", default: null },
@@ -58,4 +60,14 @@ roleSchema.index({ workspaceId: 1, slug: 1 }, { unique: true });
 roleSchema.index({ workspaceId: 1, name: 1 }, { unique: true });
 
 export const User = mongoose.models.User || mongoose.model("User", userSchema, "users");
+if (!User.schema.path("archivedAt")) {
+  User.schema.add({
+    archivedAt: { type: Date, default: null },
+    statusBeforeArchive: { type: String, default: "" },
+  });
+}
+const userStatus = User.schema.path("status") as { enumValues?: string[] };
+if (userStatus.enumValues && !userStatus.enumValues.includes("ARCHIVED")) {
+  userStatus.enumValues.push("ARCHIVED");
+}
 export const Role = mongoose.models.Role || mongoose.model("Role", roleSchema, "roles");

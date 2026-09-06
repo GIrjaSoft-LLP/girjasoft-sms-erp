@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { APP_NAME } from "@/config/branding";
 import { formatDisplayDate } from "@/lib/workspace-validity";
 import { api } from "@/lib/client";
@@ -33,6 +34,9 @@ export default function PlatformDashboardPage() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [error, setError] = useState("");
+  const [archiveTarget, setArchiveTarget] = useState<WorkspaceRow | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [query, setQuery] = useState("");
 
   async function load() {
     const [result, me] = await Promise.all([
@@ -61,6 +65,11 @@ export default function PlatformDashboardPage() {
 
   const can = (permission: string) => permissions.includes(permission);
   const stats = data?.stats ?? {};
+  const workspaces = (data?.workspaces ?? []).filter((ws) => {
+    const term = query.trim().toLowerCase();
+    if (!term) return true;
+    return [ws.schoolName, ws.name, ws.code, ws.admin].some((value) => String(value ?? "").toLowerCase().includes(term));
+  });
 
   return (
     <div className="space-y-6">
@@ -73,9 +82,11 @@ export default function PlatformDashboardPage() {
         {[
           ["Total Workspaces", stats.totalWorkspaces],
           ["Active Workspaces", stats.activeWorkspaces],
+          ["Archived Workspaces", stats.archivedWorkspaces],
           ["Disabled Workspaces", stats.disabledWorkspaces],
           ["Suspended Workspaces", stats.suspendedWorkspaces],
           ["Total Users", stats.totalUsers],
+          ["Archived Users", stats.archivedUsers],
           ["Total Students", stats.totalStudents],
           ["Total Teachers", stats.totalTeachers],
           ["Total Staff", stats.totalStaff],
@@ -86,6 +97,12 @@ export default function PlatformDashboardPage() {
           </div>
         ))}
       </div>
+      <input
+        className="gs-input max-w-md"
+        placeholder="Search active workspaces"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+      />
       <div className="gs-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left">
@@ -109,7 +126,7 @@ export default function PlatformDashboardPage() {
             </tr>
           </thead>
           <tbody>
-            {(data?.workspaces ?? []).map((ws) => (
+            {workspaces.map((ws) => (
               <tr key={ws.id} className="border-t border-slate-100">
                 <td className="p-3">
                   <div className="font-medium">{ws.schoolName}</div>
@@ -137,6 +154,9 @@ export default function PlatformDashboardPage() {
                       <button className="text-amber-700" type="button" onClick={() => act(ws.id, "deactivate")}>
                         Suspend
                       </button>
+                      <button className="text-slate-700" type="button" onClick={() => setArchiveTarget(ws)}>
+                        Archive
+                      </button>
                     </>
                   ) : null}
                   {can("platform.workspaces.view") ? (
@@ -152,9 +172,41 @@ export default function PlatformDashboardPage() {
                 </td>
               </tr>
             ))}
+            {!workspaces.length ? (
+              <tr>
+                <td className="p-6 text-slate-500" colSpan={10}>
+                  No active workspaces found.
+                </td>
+              </tr>
+            ) : null}
           </tbody>
         </table>
       </div>
+      {archiveTarget ? (
+        <ConfirmDialog
+          title="Archive workspace"
+          confirmLabel="Archive Workspace"
+          busy={busy}
+          onCancel={() => setArchiveTarget(null)}
+          onConfirm={async () => {
+            setBusy(true);
+            setError("");
+            try {
+              await api(`/api/platform/workspaces/${archiveTarget.id}/archive`, { method: "POST" });
+              setArchiveTarget(null);
+              await load();
+            } catch (err) {
+              setError(err instanceof Error ? err.message : "Archive failed.");
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          <p>Are you sure you want to archive this workspace?</p>
+          <p>All users associated with this workspace will also be moved to Archived Users.</p>
+          <p>This action will remove the workspace and its users from active listings.</p>
+        </ConfirmDialog>
+      ) : null}
     </div>
   );
 }

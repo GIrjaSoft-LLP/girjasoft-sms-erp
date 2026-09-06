@@ -12,6 +12,9 @@ export async function POST(_request: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const workspace = await Workspace.findById(id);
     if (!workspace) throw new ApiError(404, "Workspace not found.");
+    if (workspace.status === "ARCHIVED") {
+      throw new ApiError(403, "Archived workspaces cannot be opened.");
+    }
     const store = await cookies();
     store.set(VIEW_WORKSPACE_COOKIE, String(workspace._id), {
       ...cookieOptions,

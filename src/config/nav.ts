@@ -65,12 +65,22 @@ export const WORKSPACE_NAV: NavItem[] = [
   },
 ];
 
-export const PLATFORM_NAV = [
+export const PLATFORM_NAV: NavItem[] = [
   { href: "/platform/dashboard", label: "Dashboard", permission: "platform.workspaces.view", exact: true },
   { href: "/platform/workspaces/new", label: "Create Workspace", permission: "platform.workspaces.create" },
   { href: "/platform/users", label: "Workspace Users", permission: "platform.workspaceUsers.view" },
   { href: "/platform/tickets", label: "Tickets", permission: "platform.tickets.view" },
   { href: "/platform/audit", label: "Audit Logs", permission: "platform.audit.view" },
+  {
+    href: "/platform/archived",
+    label: "Archived",
+    permission: "platform.workspaces.view",
+    anyOf: ["platform.workspaces.view", "platform.workspaceUsers.view"],
+    children: [
+      { href: "/platform/archived/workspaces", label: "Workspace", permission: "platform.workspaces.view" },
+      { href: "/platform/archived/users", label: "Users", permission: "platform.workspaceUsers.view" },
+    ],
+  },
 ];
 
 export const PLATFORM_SETTINGS_NAV = [
