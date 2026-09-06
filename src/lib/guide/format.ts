@@ -1,10 +1,11 @@
-import type { GuideBlock, GuideChapter } from "@/lib/guide/types";
+import type { GuideBlock, GuideChapter, GuideRole } from "@/lib/guide/types";
 
 export function moduleDoc(input: {
   id: string;
   title: string;
   moduleId?: string;
   keywords: string[];
+  highlightRoles?: GuideRole[];
   purpose: string;
   does: string;
   who: string;
@@ -28,6 +29,7 @@ export function moduleDoc(input: {
     title: input.title,
     moduleId: input.moduleId,
     keywords: input.keywords,
+    highlightRoles: input.highlightRoles,
     blocks: [
       { type: "h", text: "1. Purpose" },
       { type: "p", text: input.purpose },

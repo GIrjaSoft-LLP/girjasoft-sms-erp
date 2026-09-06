@@ -199,6 +199,8 @@ export async function getAttendanceRegisterReport(
     return {
       _id: String(row._id),
       date: row.date,
+      classId,
+      sectionId,
       academicSessionName: row.academicSessionId ? sessionMap.get(String(row.academicSessionId)) ?? "" : "",
       className: classMap.get(classId) ?? "",
       sectionName: sectionMap.get(sectionId) ?? "",

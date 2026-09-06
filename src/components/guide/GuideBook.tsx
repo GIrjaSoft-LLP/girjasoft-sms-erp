@@ -87,7 +87,10 @@ function Blocks({ blocks }: { blocks: GuideBlock[] }) {
             </div>
           );
         }
-        return <Callout key={index} kind={block.type} text={block.text} />;
+        if (block.type === "note" || block.type === "tip" || block.type === "important" || block.type === "warning") {
+          return <Callout key={index} kind={block.type} text={block.text} />;
+        }
+        return null;
       })}
     </div>
   );

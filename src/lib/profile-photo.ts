@@ -75,7 +75,7 @@ export async function saveProfilePhoto(
   const dir = photoDir(workspaceId, kind);
   await mkdir(dir, { recursive: true });
   await removeMatching(dir, recordId);
-  const dest = path.join(dir, `${recordId}.${ext}`);
+  const dest = path.join(/* turbopackIgnore: true */ dir, `${recordId}.${ext}`);
   await writeFile(dest, bytes);
   return `${publicPhotoPath(workspaceId, kind, recordId, ext)}?v=${Date.now()}`;
 }
@@ -93,7 +93,7 @@ export async function saveGeneratedPng(
   const dir = photoDir(workspaceId, kind);
   await mkdir(dir, { recursive: true });
   await removeMatching(dir, recordId);
-  await writeFile(path.join(dir, `${recordId}.png`), png);
+  await writeFile(path.join(/* turbopackIgnore: true */ dir, `${recordId}.png`), png);
   return `${publicPhotoPath(workspaceId, kind, recordId, "png")}?v=${Date.now()}`;
 }
 
