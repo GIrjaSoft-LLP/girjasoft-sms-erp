@@ -75,9 +75,14 @@ export default function HelpPage() {
           <h1 className="text-2xl font-semibold text-[#0b1b3a]">Help & Support</h1>
           <p className="text-sm text-slate-500">How can we help? Report an incident or request assistance.</p>
         </div>
-        <button type="button" className="gs-btn px-4 py-2" onClick={() => setOpen(true)}>
-          Create Support Request
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/guide" className="gs-btn border border-slate-200 bg-white px-4 py-2 text-[#0b1b3a]">
+            Guide
+          </Link>
+          <button type="button" className="gs-btn px-4 py-2" onClick={() => setOpen(true)}>
+            Create Support Request
+          </button>
+        </div>
       </div>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       <div className="grid gap-3 sm:grid-cols-4">

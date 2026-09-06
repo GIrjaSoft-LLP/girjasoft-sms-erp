@@ -11,6 +11,7 @@ import { TeacherContextDialog } from "@/components/TeacherContextDialog";
 import { WORKSPACE_NAV } from "@/config/nav";
 import { navHrefAllowed } from "@/lib/workspace-modules";
 import { api } from "@/lib/client";
+import { useResponsiveSidebar } from "@/lib/use-responsive-sidebar";
 
 type Me = {
   user: {
@@ -44,7 +45,7 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
   const [enabledModuleIds, setEnabledModuleIds] = useState<string[]>([]);
   const [linkedChildren, setLinkedChildren] = useState<LinkedChild[]>([]);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { setSidebarOpen, toggleSidebar, collapsedDesktop, mobileOpen } = useResponsiveSidebar();
   const [teacherContextOpen, setTeacherContextOpen] = useState(false);
   const [teacherContextLabels, setTeacherContextLabels] = useState<{
     className: string;
@@ -214,26 +215,44 @@ export function WorkspaceShell({ children }: { children: React.ReactNode }) {
           user={me}
           workspace={dash?.workspace}
           enabledModuleIds={enabledModuleIds}
-          onToggleSidebar={() => setSidebarOpen((open) => !open)}
+          onToggleSidebar={toggleSidebar}
           onChangePassword={() => setPasswordOpen(true)}
           onSignOut={() => void logout()}
         />
       </div>
-      <div className="flex min-h-0 flex-1 overflow-hidden print:overflow-visible">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden print:overflow-visible">
+        {mobileOpen ? (
+          <button
+            type="button"
+            className="gs-sidebar-backdrop"
+            aria-label="Close sidebar"
+            onClick={() => setSidebarOpen(false)}
+          />
+        ) : null}
         <aside
-          className={`${
-            sidebarOpen ? "w-56" : "w-0"
-          } gs-sidebar shrink-0 overflow-hidden transition-[width] duration-200`}
+          className={`gs-app-sidebar gs-sidebar ${collapsedDesktop ? "is-collapsed" : ""} ${
+            mobileOpen ? "is-mobile-open" : ""
+          }`}
         >
           <div className="flex h-full w-56 flex-col">
             <nav className="gs-sidebar-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-2 text-sm">
               {nav.map((item) =>
                 item.children?.length ? (
-                  <SidebarNavGroup key={item.href} item={item} links={item.children} />
+                  <SidebarNavGroup
+                    key={item.href}
+                    item={item}
+                    links={item.children}
+                    onNavigate={() => {
+                      if (mobileOpen) setSidebarOpen(false);
+                    }}
+                  />
                 ) : (
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => {
+                      if (mobileOpen) setSidebarOpen(false);
+                    }}
                     className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
                       item.href === "/settings"
                         ? pathname.startsWith("/settings")

@@ -22,6 +22,17 @@ type Workspace = {
   code: string;
 };
 
+function IconDashboard() {
+  return (
+    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+      <rect x="3.5" y="3.5" width="7" height="7" rx="1.2" />
+      <rect x="13.5" y="3.5" width="7" height="7" rx="1.2" />
+      <rect x="3.5" y="13.5" width="7" height="7" rx="1.2" />
+      <rect x="13.5" y="13.5" width="7" height="7" rx="1.2" />
+    </svg>
+  );
+}
+
 function IconDoc() {
   return (
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -36,16 +47,6 @@ function IconBell() {
     <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M6 9a6 6 0 1 1 12 0c0 7 3 7 3 9H3c0-2 3-2 3-9" />
       <path d="M10 20a2 2 0 0 0 4 0" />
-    </svg>
-  );
-}
-
-function IconHelp() {
-  return (
-    <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <circle cx="12" cy="12" r="9" />
-      <path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.35c-.7.3-1.4.75-1.4 1.65V14" />
-      <path d="M12 17h.01" />
     </svg>
   );
 }
@@ -151,7 +152,7 @@ export function AppHeader({
       <div ref={root} className="flex h-14 items-center gap-3 px-4">
         <button
           type="button"
-          className="rounded-lg p-2 text-[#0b1b3a] hover:bg-slate-100"
+          className="shrink-0 rounded-lg p-2 text-[#0b1b3a] hover:bg-slate-100"
           onClick={onToggleSidebar}
           aria-label="Toggle sidebar"
         >
@@ -161,10 +162,10 @@ export function AppHeader({
         </button>
         {isPlatform ? (
           <div className="flex min-w-0 items-center gap-3">
-            <div className="h-9 w-9 shrink-0">
+            <div className="h-8 w-8 shrink-0 md:h-9 md:w-9">
               <BrandMark variant="mark" size={36} />
             </div>
-            <div className="min-w-0">
+            <div className="hidden min-w-0 md:block">
               <div className="truncate text-sm font-semibold leading-tight text-[#0b1b3a]">{APP_NAME}</div>
               <div className="truncate text-xs text-slate-500">Platform Administration</div>
             </div>
@@ -176,14 +177,14 @@ export function AppHeader({
               <img
                 src={workspace.logo}
                 alt=""
-                className="h-9 w-9 shrink-0 rounded-md object-cover bg-slate-100"
+                className="h-8 w-8 shrink-0 rounded-md object-cover bg-slate-100 md:h-9 md:w-9"
               />
             ) : (
-              <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#0b1b3a] text-[10px] font-semibold text-white">
+              <div className="grid h-8 w-8 shrink-0 place-items-center rounded-md bg-[#0b1b3a] text-[10px] font-semibold text-white md:h-9 md:w-9">
                 GS
               </div>
             )}
-            <div className="min-w-0">
+            <div className="hidden min-w-0 md:block">
               <div className="truncate text-sm font-semibold leading-tight text-[#0b1b3a]">
                 {workspace.schoolName}
               </div>
@@ -196,11 +197,18 @@ export function AppHeader({
           {isPlatform || can("profile.view") ? (
             <Link
               href={dashboardHref}
-              className={`rounded-lg px-3 py-2 font-medium ${
+              aria-label="Dashboard"
+              className={`group relative grid h-9 w-9 shrink-0 place-items-center rounded-lg lg:inline-flex lg:h-auto lg:w-auto lg:px-3 lg:py-2 lg:font-medium ${
                 dashboardActive ? "bg-[#4c7eff] text-white" : "hover:bg-slate-100"
               }`}
             >
-              Dashboard
+              <span className="lg:hidden">
+                <IconDashboard />
+              </span>
+              <span className="hidden whitespace-nowrap lg:inline">Dashboard</span>
+              <span className="lg:hidden">
+                <HeaderIconTip label="Dashboard" />
+              </span>
             </Link>
           ) : null}
           {isPlatform ? (
@@ -248,25 +256,6 @@ export function AppHeader({
                 </span>
               ) : null}
               <HeaderIconTip label="Notices" />
-            </Link>
-          ) : null}
-          {!isPlatform && user ? (
-            <Link
-              href="/help"
-              aria-label="Help"
-              className={`group relative grid h-9 w-9 place-items-center rounded-lg ${
-                pathname === "/help" || pathname?.startsWith("/help/")
-                  ? "bg-[#4c7eff] text-white"
-                  : "hover:bg-slate-100"
-              }`}
-            >
-              <IconHelp />
-              {helpUnread > 0 ? (
-                <span className="absolute right-0.5 top-0.5 grid min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-4 text-white">
-                  {helpUnread > 99 ? "99+" : helpUnread}
-                </span>
-              ) : null}
-              <HeaderIconTip label="Help" />
             </Link>
           ) : null}
           {platformSettings ? (
@@ -376,6 +365,20 @@ export function AppHeader({
                   >
                     Change Password
                   </button>
+                  {!isPlatform ? (
+                    <Link
+                      href="/help"
+                      className="flex items-center justify-between px-3 py-2 text-sm hover:bg-slate-50"
+                      onClick={() => setMenu(null)}
+                    >
+                      <span>Help</span>
+                      {helpUnread > 0 ? (
+                        <span className="grid min-w-4 place-items-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-4 text-white">
+                          {helpUnread > 99 ? "99+" : helpUnread}
+                        </span>
+                      ) : null}
+                    </Link>
+                  ) : null}
                   <button
                     type="button"
                     className="block w-full px-3 py-2 text-left text-sm text-red-600 hover:bg-slate-50"

@@ -9,6 +9,7 @@ import { PasswordDialog } from "@/components/PasswordDialog";
 import { PlatformExpiryBanner } from "@/components/PlatformExpiryBanner";
 import { PLATFORM_NAV } from "@/config/nav";
 import { api } from "@/lib/client";
+import { useResponsiveSidebar } from "@/lib/use-responsive-sidebar";
 
 type Me = {
   user: {
@@ -34,7 +35,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<Me["user"] | null>(null);
   const [passwordOpen, setPasswordOpen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const { setSidebarOpen, toggleSidebar, collapsedDesktop, mobileOpen } = useResponsiveSidebar();
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [dismissed, setDismissed] = useState(false);
 
@@ -67,16 +68,24 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
       <AppHeader
         variant="platform"
         user={user}
-        onToggleSidebar={() => setSidebarOpen((open) => !open)}
+        onToggleSidebar={toggleSidebar}
         onChangePassword={() => setPasswordOpen(true)}
         onSignOut={() => void logout()}
       />
       {!dismissed && alerts.length ? <PlatformExpiryBanner alerts={alerts} onDismiss={() => setDismissed(true)} /> : null}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        {mobileOpen ? (
+          <button
+            type="button"
+            className="gs-sidebar-backdrop"
+            aria-label="Close sidebar"
+            onClick={() => setSidebarOpen(false)}
+          />
+        ) : null}
         <aside
-          className={`${
-            sidebarOpen ? "w-56" : "w-0"
-          } gs-sidebar shrink-0 overflow-hidden transition-[width] duration-200`}
+          className={`gs-app-sidebar gs-sidebar ${collapsedDesktop ? "is-collapsed" : ""} ${
+            mobileOpen ? "is-mobile-open" : ""
+          }`}
         >
           <div className="flex h-full w-56 flex-col">
             <nav className="gs-sidebar-scroll min-h-0 flex-1 space-y-0.5 overflow-x-hidden overflow-y-auto overscroll-contain px-2 py-2 text-sm">
@@ -88,6 +97,9 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={() => {
+                      if (mobileOpen) setSidebarOpen(false);
+                    }}
                     className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
                       active ? "gs-sidebar-link-active" : ""
                     }`}
@@ -103,7 +115,7 @@ export function PlatformShell({ children }: { children: React.ReactNode }) {
           <div className="p-6">{children}</div>
         </main>
       </div>
-      <AppFooter showLogo={false} />
+      <AppFooter />
       {passwordOpen ? (
         <PasswordDialog
           title="Change password"

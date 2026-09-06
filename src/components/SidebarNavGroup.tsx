@@ -13,9 +13,11 @@ function childActive(pathname: string, item: NavLink) {
 export function SidebarNavGroup({
   item,
   links,
+  onNavigate,
 }: {
   item: NavItem;
   links: NavLink[];
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const hasActiveChild = links.some((child) => childActive(pathname, child));
@@ -51,6 +53,7 @@ export function SidebarNavGroup({
                 className={`block whitespace-nowrap px-2.5 py-1.5 gs-sidebar-link ${
                   active ? "gs-sidebar-link-active" : ""
                 }`}
+                onClick={onNavigate}
               >
                 {child.label}
               </Link>
