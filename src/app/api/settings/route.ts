@@ -48,9 +48,19 @@ export async function PATCH(request: Request) {
       .parse(await request.json());
 
     const { workspace, ...rest } = body;
+    const $set: Record<string, unknown> = {};
+    for (const [section, value] of Object.entries(rest)) {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+          $set[`${section}.${key}`] = nested;
+        }
+      } else if (value !== undefined) {
+        $set[section] = value;
+      }
+    }
     const settings = await Settings.findOneAndUpdate(
       scopedQuery(ctx.workspaceId),
-      { $set: rest },
+      Object.keys($set).length ? { $set } : {},
       { new: true, upsert: true },
     );
     if (workspace) {

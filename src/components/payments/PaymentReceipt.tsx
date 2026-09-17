@@ -7,6 +7,8 @@ const METHOD_LABELS: Record<string, string> = {
   UPI: "UPI",
   CARD: "Card",
   BANK: "Bank Transfer",
+  QR: "QR Code",
+  OTHER: "Other",
 };
 
 function text(value: unknown) {

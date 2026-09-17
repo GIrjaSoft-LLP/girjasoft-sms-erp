@@ -3,6 +3,7 @@ import { TICKET_PRIORITIES, TICKET_STATUSES } from "@/config/tickets";
 import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { logPlatform } from "@/lib/audit";
 import { notifySchoolUser } from "@/lib/ticket-notify";
+import { isWorkspaceRoutedTicket } from "@/lib/ticket-routing";
 import { SupportTicket } from "@/models/support";
 import { PlatformAdmin } from "@/models/platform";
 
@@ -13,7 +14,7 @@ export async function GET(_request: NextRequest, ctx: Ctx) {
     await requirePlatformPerm("platform.tickets.view");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
-    if (!ticket) throw new ApiError(404, "Ticket not found.");
+    if (!ticket || isWorkspaceRoutedTicket(ticket)) throw new ApiError(404, "Ticket not found.");
     if (ticket.unreadForPlatform) {
       ticket.unreadForPlatform = false;
       await ticket.save();
@@ -33,7 +34,7 @@ export async function PATCH(request: NextRequest, ctx: Ctx) {
     const session = await requirePlatformPerm("platform.tickets.edit");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
-    if (!ticket) throw new ApiError(404, "Ticket not found.");
+    if (!ticket || isWorkspaceRoutedTicket(ticket)) throw new ApiError(404, "Ticket not found.");
     const body = (await request.json()) as {
       status?: string;
       priority?: string;

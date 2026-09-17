@@ -29,6 +29,7 @@ type Ticket = {
   createdByName: string;
   createdAt: string;
   resolution?: string;
+  ticketRoute?: string;
   attachments?: Array<{ name: string; url: string }>;
   messages?: Message[];
   events?: Array<{ action: string; actorName: string; detail?: string; createdAt?: string }>;
@@ -37,14 +38,18 @@ type Ticket = {
 export default function HelpTicketPage() {
   const params = useParams<{ id: string }>();
   const [ticket, setTicket] = useState<Ticket | null>(null);
+  const [canManage, setCanManage] = useState(false);
   const [error, setError] = useState("");
   const [reply, setReply] = useState("");
+  const [resolution, setResolution] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
   async function load() {
-    const data = await api<{ item: Ticket }>(`/api/help/tickets/${params.id}`);
+    const data = await api<{ item: Ticket; canManage?: boolean }>(`/api/help/tickets/${params.id}`);
     setTicket(data.item);
+    setCanManage(Boolean(data.canManage));
+    setResolution(data.item.resolution ?? "");
   }
 
   useEffect(() => {
@@ -73,12 +78,12 @@ export default function HelpTicketPage() {
     }
   }
 
-  async function act(action: "confirm" | "reopen") {
+  async function act(action: "confirm" | "reopen" | "resolve") {
     setError("");
     try {
       const data = await api<{ item: Ticket }>(`/api/help/tickets/${params.id}/action`, {
         method: "POST",
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({ action, resolution }),
       });
       setTicket(data.item);
     } catch (err) {
@@ -91,7 +96,7 @@ export default function HelpTicketPage() {
   return (
     <div className="space-y-6">
       <Link href="/help" className="text-sm text-[#4c7eff]">
-        ← My Tickets
+        ← Tickets
       </Link>
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
       {ticket ? (
@@ -122,6 +127,19 @@ export default function HelpTicketPage() {
               </div>
             ) : null}
             <div className="flex flex-wrap gap-2 pt-2">
+              {canManage && ticket.status !== "CLOSED" && ticket.status !== "RESOLVED" ? (
+                <div className="w-full space-y-2">
+                  <textarea
+                    className="gs-input min-h-20"
+                    value={resolution}
+                    onChange={(e) => setResolution(e.target.value)}
+                    placeholder="Resolution notes"
+                  />
+                  <button type="button" className="gs-btn px-3 py-2" onClick={() => void act("resolve")}>
+                    Resolve Ticket
+                  </button>
+                </div>
+              ) : null}
               {ticket.status === "RESOLVED" ? (
                 <button type="button" className="gs-btn px-3 py-2" onClick={() => void act("confirm")}>
                   Confirm Resolution

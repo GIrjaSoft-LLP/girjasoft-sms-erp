@@ -396,8 +396,9 @@ export const RESOURCES: Record<string, ResourceConfig> = {
       { key: "description", label: "Description" },
       { key: "amount", label: "Amount" },
       { key: "paidAmount", label: "Paid" },
+      { key: "dueAmount", label: "Balance" },
       { key: "statusLabel", label: "Status" },
-      { key: "dueDate", label: "Due" },
+      { key: "dueDate", label: "Due Date" },
     ],
     fields: [
       { name: "studentName", label: "Student" },
@@ -430,7 +431,7 @@ export const RESOURCES: Record<string, ResourceConfig> = {
     collection: "feePayments",
     label: "Fee Payments",
     permission: "payments",
-    searchFields: ["receiptNumber", "method"],
+    searchFields: ["receiptNumber", "method", "transactionRef", "verificationStatus"],
     columns: [
       { key: "receiptNumber", label: "Receipt" },
       { key: "admissionNumber", label: "Admission No" },
@@ -441,6 +442,7 @@ export const RESOURCES: Record<string, ResourceConfig> = {
       { key: "amount", label: "Amount" },
       { key: "method", label: "Method" },
       { key: "date", label: "Date" },
+      { key: "verificationStatusLabel", label: "Verification" },
       { key: "remarks", label: "Remarks" },
     ],
     fields: [

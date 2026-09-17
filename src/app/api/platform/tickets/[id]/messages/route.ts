@@ -3,6 +3,7 @@ import { ApiError, errorResponse, json, requirePlatformPerm } from "@/lib/api/gu
 import { logPlatform } from "@/lib/audit";
 import { saveTicketFile } from "@/lib/ticket-files";
 import { notifySchoolUser } from "@/lib/ticket-notify";
+import { isWorkspaceRoutedTicket } from "@/lib/ticket-routing";
 import { SupportTicket } from "@/models/support";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest, ctx: Ctx) {
     const session = await requirePlatformPerm("platform.tickets.edit");
     const { id } = await ctx.params;
     const ticket = await SupportTicket.findById(id);
-    if (!ticket) throw new ApiError(404, "Ticket not found.");
+    if (!ticket || isWorkspaceRoutedTicket(ticket)) throw new ApiError(404, "Ticket not found.");
 
     const contentType = request.headers.get("content-type") ?? "";
     let body = "";

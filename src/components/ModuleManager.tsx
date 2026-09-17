@@ -1,11 +1,16 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 import { ExcelActions } from "@/components/ExcelActions";
 import { CredentialsDialog } from "@/components/CredentialsDialog";
 import { PhotoField } from "@/components/PhotoField";
 import { NoticeDetailModal, type NoticeDetail } from "@/components/notices/NoticeDetailModal";
 import { RecordDialog } from "@/components/RecordDialog";
+import { FeePaymentSettingsDialog } from "@/components/fees/FeePaymentSettingsDialog";
+import { PayFeeDialog } from "@/components/fees/PayFeeDialog";
+import { UploadReceiptDialog } from "@/components/fees/UploadReceiptDialog";
+import { VerifyPaymentDialog } from "@/components/payments/VerifyPaymentDialog";
 import { isPrintableDocument } from "@/config/documents";
 import { isExcelModule } from "@/config/excel";
 import {
@@ -55,12 +60,14 @@ export function ModuleManager({
   allowCreate = true,
   readOnly = false,
   onCreateClick,
+  headerActions,
 }: {
   resourceKey: string;
   viewPathPrefix?: string;
   allowCreate?: boolean;
   readOnly?: boolean;
   onCreateClick?: () => void;
+  headerActions?: ReactNode;
 }) {
   const resource = RESOURCES[resourceKey];
   const filters = RESOURCE_FILTERS[resourceKey] ?? [];
@@ -92,6 +99,11 @@ export function ModuleManager({
   const [removePhoto, setRemovePhoto] = useState(false);
   const [photoUrl, setPhotoUrl] = useState("");
   const [permissions, setPermissions] = useState<string[] | null>(null);
+  const [roleSlugs, setRoleSlugs] = useState<string[]>([]);
+  const [payFeeId, setPayFeeId] = useState<string | null>(null);
+  const [uploadFeeId, setUploadFeeId] = useState<string | null>(null);
+  const [verifyPaymentId, setVerifyPaymentId] = useState<string | null>(null);
+  const [paymentSettingsOpen, setPaymentSettingsOpen] = useState(false);
   const [noticeDetail, setNoticeDetail] = useState<NoticeDetail | null>(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [noticeLoading, setNoticeLoading] = useState(false);
@@ -112,6 +124,10 @@ export function ModuleManager({
     !readOnly &&
     Boolean(permissions?.includes(`${resource.permission}.delete`)) &&
     (!isNotices || Boolean(permissions?.includes("notices.delete")));
+  const isParent = roleSlugs.includes("parent");
+  const canCollectFees = Boolean(permissions?.includes("fees.collect"));
+  const canConfigurePayments =
+    !isParent && (canCollectFees || Boolean(permissions?.includes("settings.edit")));
 
   const needsLookups = filters.includes("classId") || filters.includes("sectionId");
 
@@ -149,9 +165,15 @@ export function ModuleManager({
   }, [resourceKey, classId, sectionId, status, date, day]);
 
   useEffect(() => {
-    api<{ user: { permissions?: string[] } }>("/api/auth/me")
-      .then((data) => setPermissions(data.user.permissions ?? []))
-      .catch(() => setPermissions([]));
+    api<{ user: { permissions?: string[]; roleSlugs?: string[] } }>("/api/auth/me")
+      .then((data) => {
+        setPermissions(data.user.permissions ?? []);
+        setRoleSlugs(data.user.roleSlugs ?? []);
+      })
+      .catch(() => {
+        setPermissions([]);
+        setRoleSlugs([]);
+      });
   }, [resourceKey]);
 
   async function openNotice(id: string) {
@@ -355,6 +377,12 @@ export function ModuleManager({
               Download ID Cards ({selected.length})
             </a>
           ) : null}
+          {resourceKey === "fees" && canConfigurePayments ? (
+            <button type="button" className="rounded-lg border px-4 py-2 text-sm" onClick={() => setPaymentSettingsOpen(true)}>
+              Payment Details
+            </button>
+          ) : null}
+          {headerActions}
           {canCreateRecord ? (
             <button type="button" className="gs-btn px-4 py-2" onClick={onCreateClick ?? openCreate}>
               Create
@@ -424,7 +452,15 @@ export function ModuleManager({
                     ? ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
                         option
                       ] ?? option
-                    : option}
+                    : resourceKey === "payments"
+                      ? (
+                          {
+                            PENDING_VERIFICATION: "Pending Verification",
+                            CONFIRMED: "Confirmed",
+                            REJECTED: "Rejected",
+                          } as Record<string, string>
+                        )[option] ?? option
+                      : option}
                 </option>
               ))}
             </select>
@@ -588,7 +624,25 @@ export function ModuleManager({
                       </button>
                     </>
                   ) : null}
-                  {isPrintableDocument(resourceKey) ? (
+                  {resourceKey === "fees" && isParent ? (
+                    <FeeParentActions
+                      item={item}
+                      onPay={() => setPayFeeId(String(item._id))}
+                      onUpload={() => setUploadFeeId(String(item._id))}
+                    />
+                  ) : null}
+                  {resourceKey === "payments" &&
+                  (canCollectFees || isParent) &&
+                  (item.verificationStatus === "PENDING_VERIFICATION" || item.receiptUrl) ? (
+                    <button className="text-[#4c7eff]" onClick={() => setVerifyPaymentId(String(item._id))}>
+                      View Receipt
+                    </button>
+                  ) : null}
+                  {isPrintableDocument(resourceKey) &&
+                  !(
+                    resourceKey === "payments" &&
+                    String(item.verificationStatus ?? "CONFIRMED") !== "CONFIRMED"
+                  ) ? (
                     <a
                       className="text-emerald-700"
                       href={`/print/${resourceKey}/${String(item._id)}`}
@@ -793,6 +847,91 @@ export function ModuleManager({
           onClose={() => setCredentials(null)}
         />
       ) : null}
+      {paymentSettingsOpen ? <FeePaymentSettingsDialog onClose={() => setPaymentSettingsOpen(false)} /> : null}
+      {payFeeId ? (
+        <PayFeeDialog
+          feeId={payFeeId}
+          onClose={() => setPayFeeId(null)}
+          onUpload={() => {
+            setPayFeeId(null);
+            setUploadFeeId(payFeeId);
+          }}
+        />
+      ) : null}
+      {uploadFeeId ? (
+        <UploadReceiptDialog
+          feeId={uploadFeeId}
+          onClose={() => setUploadFeeId(null)}
+          onUploaded={() => {
+            setUploadFeeId(null);
+            void load();
+          }}
+        />
+      ) : null}
+      {verifyPaymentId ? (
+        <VerifyPaymentDialog
+          paymentId={verifyPaymentId}
+          canVerify={canCollectFees}
+          onClose={() => setVerifyPaymentId(null)}
+          onChanged={() => {
+            setVerifyPaymentId(null);
+            void load();
+          }}
+        />
+      ) : null}
     </div>
+  );
+}
+
+function FeeParentActions({
+  item,
+  onPay,
+  onUpload,
+}: {
+  item: Record<string, unknown>;
+  onPay: () => void;
+  onUpload: () => void;
+}) {
+  const review = item.paymentReview as
+    | {
+        verificationStatus?: string;
+        amount?: number;
+        date?: string;
+        method?: string;
+        transactionRef?: string;
+        submittedAt?: string;
+        rejectionReason?: string;
+      }
+    | null
+    | undefined;
+  const paid = String(item.status ?? "") === "PAID";
+  const pendingReview = review?.verificationStatus === "PENDING_VERIFICATION";
+  const rejected = review?.verificationStatus === "REJECTED";
+  const submitted = review?.submittedAt || review?.date;
+
+  return (
+    <>
+      {pendingReview ? (
+        <span className="text-amber-700">Payment Under Review</span>
+      ) : !paid ? (
+        <>
+          <button className="text-[#4c7eff]" onClick={onPay}>
+            Pay
+          </button>
+          <button className="text-[#4c7eff]" onClick={onUpload}>
+            Upload
+          </button>
+        </>
+      ) : null}
+      {review ? (
+        <p className="mt-1 w-full text-xs text-slate-500">
+          {pendingReview
+            ? `Submitted ${submitted ? new Date(String(submitted)).toLocaleDateString() : ""} · ${review.method ?? ""} ${review.transactionRef ? `· ${review.transactionRef}` : ""}`
+            : rejected
+              ? `Rejected${review.rejectionReason ? `: ${review.rejectionReason}` : ""}`
+              : null}
+        </p>
+      ) : null}
+    </>
   );
 }

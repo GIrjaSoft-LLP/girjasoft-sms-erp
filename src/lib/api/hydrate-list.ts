@@ -16,6 +16,7 @@ import {
   TransportRoute,
   Vehicle,
   Exam,
+  FeePayment,
 } from "@/models/workspace";
 
 function refId(value: unknown) {
@@ -67,7 +68,7 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
   const feeStructureIds = collect(items, "feeStructureId");
   const parentIds = resourceKey === "students" ? collect(items, "parentId") : [];
 
-  const [students, studentFees, parentUsers, teacherUsers, parentsForStudents] = await Promise.all([
+  const [students, studentFees, parentUsers, teacherUsers, parentsForStudents, feeReviews] = await Promise.all([
     studentIds.length
       ? Student.find({ _id: { $in: studentIds } }).select("name admissionNumber classId sectionId").lean()
       : [],
@@ -86,6 +87,18 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       : [],
     resourceKey === "students" && parentIds.length
       ? Parent.find({ _id: { $in: parentIds } }).select("name phone").lean()
+      : [],
+    resourceKey === "fees"
+      ? FeePayment.find({
+          workspaceId: items[0]?.workspaceId,
+          studentFeeId: { $in: items.map((item) => item._id) },
+          verificationStatus: { $in: ["PENDING_VERIFICATION", "REJECTED"] },
+        })
+          .sort({ createdAt: -1 })
+          .select(
+            "studentFeeId verificationStatus amount date method transactionRef submittedAt rejectionReason createdAt",
+          )
+          .lean()
       : [],
   ]);
 
@@ -153,6 +166,11 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
     teacherUsers.map((user) => [String(user.linkedTeacherId), user]),
   );
   const parentRecordMap = asMap(parentsForStudents);
+  const feeReviewMap = new Map<string, (typeof feeReviews)[number]>();
+  for (const review of feeReviews) {
+    const feeId = refId(review.studentFeeId);
+    if (feeId && !feeReviewMap.has(feeId)) feeReviewMap.set(feeId, review);
+  }
 
   let sectionStudentCounts = new Map<string, number>();
   if (resourceKey === "sections" && items.length) {
@@ -221,11 +239,32 @@ export async function hydrateListItems(items: Record<string, unknown>[], resourc
       examName: exam?.name ?? "",
       bookTitle: book?.title ?? "",
       feeHead: feeHead?.name ?? "",
+      dueAmount:
+        resourceKey === "fees"
+          ? Math.max(0, Math.round((Number(item.amount ?? 0) - Number(item.paidAmount ?? 0)) * 100) / 100)
+          : undefined,
       statusLabel:
         resourceKey === "fees"
-          ? ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
-              String(item.status ?? "")
-            ] ?? String(item.status ?? "")
+          ? feeReviewMap.get(String(item._id))?.verificationStatus === "PENDING_VERIFICATION"
+            ? "Pending Verification"
+            : ({ PENDING: "Pending", PARTIAL: "Partially Paid", PAID: "Paid" } as Record<string, string>)[
+                String(item.status ?? "")
+              ] ?? String(item.status ?? "")
+          : undefined,
+      paymentReview: resourceKey === "fees" ? feeReviewMap.get(String(item._id)) ?? null : undefined,
+      verificationStatusLabel:
+        resourceKey === "payments"
+          ? (
+              {
+                PENDING_VERIFICATION: "Pending Verification",
+                CONFIRMED: "Confirmed",
+                REJECTED: "Rejected",
+              } as Record<string, string>
+            )[String(item.verificationStatus ?? "CONFIRMED")] ?? "Confirmed"
+          : undefined,
+      receiptUrl:
+        resourceKey === "payments"
+          ? String((item.receiptFile as { url?: string } | undefined)?.url ?? "")
           : undefined,
       leaveTypeName: leaveType?.name ?? "",
       routeName: route?.name ?? "",

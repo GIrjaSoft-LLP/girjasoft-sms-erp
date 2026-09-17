@@ -416,11 +416,33 @@ const feePaymentSchema = new Schema(
     receiptNumber: { type: String, required: true },
     date: { type: String, required: true },
     remarks: { type: String, default: "" },
+    verificationStatus: {
+      type: String,
+      enum: ["PENDING_VERIFICATION", "CONFIRMED", "REJECTED"],
+      default: "CONFIRMED",
+      index: true,
+    },
+    source: { type: String, enum: ["ADMIN", "PARENT_RECEIPT", "GATEWAY"], default: "ADMIN" },
+    transactionRef: { type: String, default: "" },
+    receiptFile: {
+      name: { type: String, default: "" },
+      url: { type: String, default: "" },
+      size: { type: Number, default: 0 },
+      mime: { type: String, default: "" },
+    },
+    submittedBy: { type: Schema.Types.ObjectId, default: null },
+    submittedByName: { type: String, default: "" },
+    submittedAt: { type: Date, default: null },
+    verifiedBy: { type: Schema.Types.ObjectId, default: null },
+    verifiedAt: { type: Date, default: null },
+    rejectionReason: { type: String, default: "" },
+    appliedToFee: { type: Boolean, default: false },
   },
   { timestamps: true },
 );
 feePaymentSchema.index({ workspaceId: 1, receiptNumber: 1 }, { unique: true });
 feePaymentSchema.index({ workspaceId: 1, studentId: 1, date: 1 });
+feePaymentSchema.index({ workspaceId: 1, studentFeeId: 1, verificationStatus: 1 });
 
 const expenseSchema = new Schema(
   {

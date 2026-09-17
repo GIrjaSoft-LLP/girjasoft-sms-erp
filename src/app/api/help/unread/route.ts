@@ -1,5 +1,6 @@
-import { errorResponse, json, requireWorkspaceContext, scopedQuery } from "@/lib/api/guards";
+import { errorResponse, json, requireWorkspaceContext } from "@/lib/api/guards";
 import { assertSchoolHelp } from "@/lib/ticket-access";
+import { schoolTicketVisibilityQuery } from "@/lib/ticket-routing";
 import { SupportTicket } from "@/models/support";
 
 export async function GET() {
@@ -7,7 +8,7 @@ export async function GET() {
     const ctx = await requireWorkspaceContext();
     assertSchoolHelp(ctx);
     const count = await SupportTicket.countDocuments({
-      ...scopedQuery(ctx.workspaceId),
+      ...schoolTicketVisibilityQuery(ctx.workspaceId, ctx.session.sub, ctx.session.roleSlugs),
       unreadForSchool: true,
     });
     return json({ count });

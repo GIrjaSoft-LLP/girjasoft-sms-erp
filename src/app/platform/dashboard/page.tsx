@@ -82,11 +82,9 @@ export default function PlatformDashboardPage() {
         {[
           ["Total Workspaces", stats.totalWorkspaces],
           ["Active Workspaces", stats.activeWorkspaces],
-          ["Archived Workspaces", stats.archivedWorkspaces],
           ["Disabled Workspaces", stats.disabledWorkspaces],
           ["Suspended Workspaces", stats.suspendedWorkspaces],
           ["Total Users", stats.totalUsers],
-          ["Archived Users", stats.archivedUsers],
           ["Total Students", stats.totalStudents],
           ["Total Teachers", stats.totalTeachers],
           ["Total Staff", stats.totalStaff],

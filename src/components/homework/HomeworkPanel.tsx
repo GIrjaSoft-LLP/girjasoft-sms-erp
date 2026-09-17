@@ -1,7 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { ParentHomeworkWeek, shiftWeek } from "@/components/homework/ParentHomeworkWeek";
 import { api } from "@/lib/client";
+import { startOfWeekMonday, weekEndFromStart } from "@/lib/homework/week-range";
 
 type HomeworkRow = {
   _id: string;
@@ -337,31 +339,52 @@ export function HomeworkPanel() {
   const [viewItem, setViewItem] = useState<HomeworkView | null>(null);
   const [viewLoading, setViewLoading] = useState(false);
   const [viewError, setViewError] = useState("");
+  const [weekStart, setWeekStart] = useState(startOfWeekMonday);
 
   const isTeacherMode = formContext?.mode === "teacher";
   const isAdminMode = formContext?.mode === "admin";
   const isReadOnlyRole = formContext?.mode === "parent" || formContext?.mode === "student";
 
-  const load = useCallback(async () => {
+  const loadItems = useCallback(async (mode?: FormContext["mode"]) => {
+    const readOnly = mode === "parent" || mode === "student";
     setLoading(true);
     setError("");
     try {
-      const [listRes, contextRes] = await Promise.all([
-        api<{ items: HomeworkRow[] }>("/api/homework"),
-        api<{ formContext: FormContext }>("/api/homework/form-context"),
-      ]);
+      const listUrl = readOnly
+        ? `/api/homework?startDate=${weekStart}&endDate=${weekEndFromStart(weekStart)}`
+        : "/api/homework";
+      const listRes = await api<{ items: HomeworkRow[] }>(listUrl);
       setItems(listRes.items);
-      setFormContext(contextRes.formContext);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load homework.");
     } finally {
       setLoading(false);
     }
+  }, [weekStart]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const contextRes = await api<{ formContext: FormContext }>("/api/homework/form-context");
+        if (cancelled) return;
+        setFormContext(contextRes.formContext);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load homework.");
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (!formContext) return;
+    void loadItems(formContext.mode);
+  }, [formContext, loadItems]);
 
   const canCreate = Boolean(formContext?.canCreate && (isAdminMode || (isTeacherMode && formContext?.ready)));
   const canEdit = Boolean(formContext?.canEdit);
@@ -430,7 +453,7 @@ export function HomeworkPanel() {
   async function removeHomework(id: string) {
     try {
       await api(`/api/homework/${id}`, { method: "DELETE" });
-      await load();
+      await loadItems(formContext?.mode);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not delete homework.");
     }
@@ -468,7 +491,7 @@ export function HomeworkPanel() {
         });
       }
       setDialogOpen(false);
-      await load();
+      await loadItems(formContext?.mode);
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Could not save homework.");
     } finally {
@@ -512,8 +535,19 @@ export function HomeworkPanel() {
         </div>
       ) : null}
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error && !isReadOnlyRole ? <p className="text-sm text-red-600">{error}</p> : null}
 
+      {isReadOnlyRole ? (
+        <ParentHomeworkWeek
+          startDate={weekStart}
+          items={items}
+          loading={loading}
+          error={error}
+          onPrev={() => setWeekStart((current) => shiftWeek(current, -1))}
+          onNext={() => setWeekStart((current) => shiftWeek(current, 1))}
+          onView={(id) => void openView(id)}
+        />
+      ) : (
       <div className="gs-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left">
@@ -542,13 +576,7 @@ export function HomeworkPanel() {
                   <td className="p-3">{formatDisplayDate(item.dueDate)}</td>
                   <td className="p-3">{item.title ?? "—"}</td>
                   <td className="p-3 space-x-3">
-                    {isReadOnlyRole ? (
-                      <button type="button" className="text-[#4c7eff] hover:underline" onClick={() => void openView(item._id)}>
-                        View
-                      </button>
-                    ) : (
-                      <>
-                        {canEdit ? (
+                    {canEdit ? (
                           <button type="button" className="text-[#4c7eff] hover:underline" onClick={() => void openEdit(item._id)}>
                             Edit
                           </button>
@@ -565,8 +593,6 @@ export function HomeworkPanel() {
                             Delete
                           </button>
                         ) : null}
-                      </>
-                    )}
                   </td>
                 </tr>
               ))
@@ -580,6 +606,7 @@ export function HomeworkPanel() {
           </tbody>
         </table>
       </div>
+      )}
 
       {dialogOpen ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4">

@@ -1,6 +1,6 @@
 import { errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { excludePortalAccounts } from "@/lib/parent-account";
-import { activeWorkspaceQuery, archivedWorkspaceQuery } from "@/lib/platform/workspace-archive";
+import { activeWorkspaceQuery } from "@/lib/platform/workspace-archive";
 import { workspaceSubscription } from "@/lib/workspace-validity";
 import { User } from "@/models/identity";
 import { Workspace } from "@/models/platform";
@@ -9,36 +9,30 @@ import { Staff, Student, Teacher } from "@/models/workspace";
 export async function GET() {
   try {
     await requirePlatformPerm("platform.workspaces.view");
-    const [activeWorkspaceIds, archivedWorkspaceIds] = await Promise.all([
-      Workspace.find(activeWorkspaceQuery()).distinct("_id"),
-      Workspace.find(archivedWorkspaceQuery()).distinct("_id"),
-    ]);
+    const activeWorkspaceIds = await Workspace.find(activeWorkspaceQuery()).distinct("_id");
+    const inActiveWorkspaces = { workspaceId: { $in: activeWorkspaceIds } };
     const [
       totalWorkspaces,
       activeWorkspaces,
       disabledWorkspaces,
       suspendedWorkspaces,
-      archivedWorkspaces,
       totalUsers,
-      archivedUsers,
       totalStudents,
       totalTeachers,
       totalStaff,
       workspaces,
     ] = await Promise.all([
-      Workspace.countDocuments(),
+      Workspace.countDocuments(activeWorkspaceQuery()),
       Workspace.countDocuments({ status: "ACTIVE" }),
       Workspace.countDocuments({ status: "DISABLED" }),
       Workspace.countDocuments({ status: "SUSPENDED" }),
-      Workspace.countDocuments({ status: "ARCHIVED" }),
       User.countDocuments({
         ...excludePortalAccounts(),
-        workspaceId: { $in: activeWorkspaceIds },
+        ...inActiveWorkspaces,
       }),
-      User.countDocuments({ workspaceId: { $in: archivedWorkspaceIds } }),
-      Student.countDocuments(),
-      Teacher.countDocuments(),
-      Staff.countDocuments(),
+      Student.countDocuments(inActiveWorkspaces),
+      Teacher.countDocuments(inActiveWorkspaces),
+      Staff.countDocuments(inActiveWorkspaces),
       Workspace.find(activeWorkspaceQuery()).sort({ lastActivityAt: -1 }).limit(25).lean(),
     ]);
 
@@ -73,9 +67,7 @@ export async function GET() {
         activeWorkspaces,
         disabledWorkspaces,
         suspendedWorkspaces,
-        archivedWorkspaces,
         totalUsers,
-        archivedUsers,
         totalStudents,
         totalTeachers,
         totalStaff,

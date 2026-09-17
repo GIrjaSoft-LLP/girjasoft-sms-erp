@@ -13,6 +13,7 @@ type TicketRow = {
   subject: string;
   priority: string;
   status: string;
+  createdByName?: string;
   createdAt: string;
   updatedAt: string;
 };
@@ -102,7 +103,7 @@ export default function HelpPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left">
             <tr>
-              {["Ticket ID", "Subject", "Type", "Priority", "Status", "Created", "Updated"].map((col) => (
+              {["Ticket ID", "Subject", "Created by", "Type", "Priority", "Status", "Created", "Updated"].map((col) => (
                 <th key={col} className="p-3 font-medium">
                   {col}
                 </th>
@@ -118,6 +119,7 @@ export default function HelpPage() {
                   </Link>
                 </td>
                 <td className="p-3">{item.subject}</td>
+                <td className="p-3">{item.createdByName || "—"}</td>
                 <td className="p-3">{ticketLabel(item.type)}</td>
                 <td className="p-3">{ticketLabel(item.priority)}</td>
                 <td className="p-3">{ticketLabel(item.status)}</td>
@@ -127,7 +129,7 @@ export default function HelpPage() {
             ))}
             {!items.length ? (
               <tr>
-                <td className="p-6 text-slate-500" colSpan={7}>
+                <td className="p-6 text-slate-500" colSpan={8}>
                   <p className="font-medium text-[#0b1b3a]">No support tickets found.</p>
                   <p className="mt-1">
                     If you are facing an issue or need assistance, create a support request and our team will help you.

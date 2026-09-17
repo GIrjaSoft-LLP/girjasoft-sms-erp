@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import { NextRequest } from "next/server";
 import { errorResponse, json, requirePlatformPerm } from "@/lib/api/guards";
 import { TICKET_PRIORITIES, TICKET_STATUSES, TICKET_TYPES, supportModules } from "@/config/tickets";
+import { platformTicketQuery } from "@/lib/ticket-routing";
 import { SupportTicket } from "@/models/support";
 import { Workspace } from "@/models/platform";
 
@@ -21,7 +22,7 @@ export async function GET(request: NextRequest) {
     const limit = Math.min(50, Math.max(10, Number(url.searchParams.get("limit") ?? 20)));
     const sort = url.searchParams.get("sort") === "asc" ? 1 : -1;
 
-    const query: Record<string, unknown> = {};
+    const query: Record<string, unknown> = platformTicketQuery();
     if (status && TICKET_STATUSES.includes(status as (typeof TICKET_STATUSES)[number])) query.status = status;
     if (type && TICKET_TYPES.includes(type as (typeof TICKET_TYPES)[number])) query.type = type;
     if (priority && TICKET_PRIORITIES.includes(priority as (typeof TICKET_PRIORITIES)[number])) {
@@ -42,6 +43,7 @@ export async function GET(request: NextRequest) {
       query.$or = [{ ticketNumber: re }, { subject: re }, { schoolName: re }, { createdByName: re }];
     }
 
+    const platformMatch = platformTicketQuery();
     const [items, total, grouped, critical, workspaces] = await Promise.all([
       SupportTicket.find(query)
         .sort({ createdAt: sort })
@@ -49,14 +51,14 @@ export async function GET(request: NextRequest) {
         .limit(limit)
         .lean(),
       SupportTicket.countDocuments(query),
-      SupportTicket.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-      SupportTicket.countDocuments({ priority: "CRITICAL", status: { $nin: ["CLOSED"] } }),
+      SupportTicket.aggregate([{ $match: platformMatch }, { $group: { _id: "$status", count: { $sum: 1 } } }]),
+      SupportTicket.countDocuments(platformTicketQuery({ priority: "CRITICAL", status: { $nin: ["CLOSED"] } })),
       Workspace.find({}).select("schoolName code").sort({ schoolName: 1 }).lean(),
     ]);
 
     const byStatus = Object.fromEntries(grouped.map((row) => [row._id, row.count]));
     const stats = {
-      total: await SupportTicket.countDocuments(),
+      total: await SupportTicket.countDocuments(platformMatch),
       open: byStatus.OPEN ?? 0,
       assigned: byStatus.ASSIGNED ?? 0,
       inProgress: byStatus.IN_PROGRESS ?? 0,

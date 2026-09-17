@@ -60,6 +60,7 @@ const supportTicketSchema = new Schema(
     resolution: { type: String, default: "" },
     unreadForSchool: { type: Boolean, default: false },
     unreadForPlatform: { type: Boolean, default: true },
+    ticketRoute: { type: String, enum: ["PLATFORM", "WORKSPACE"], default: "PLATFORM", index: true },
     attachments: { type: [attachmentSchema], default: [] },
     messages: { type: [messageSchema], default: [] },
     events: { type: [eventSchema], default: [] },
@@ -69,6 +70,12 @@ const supportTicketSchema = new Schema(
 
 supportTicketSchema.index({ workspaceId: 1, createdAt: -1 });
 supportTicketSchema.index({ status: 1, createdAt: -1 });
+supportTicketSchema.index({ ticketRoute: 1, workspaceId: 1, createdAt: -1 });
 
 export const SupportTicket =
   mongoose.models.SupportTicket || mongoose.model("SupportTicket", supportTicketSchema, "supportTickets");
+if (!SupportTicket.schema.path("ticketRoute")) {
+  SupportTicket.schema.add({
+    ticketRoute: { type: String, enum: ["PLATFORM", "WORKSPACE"], default: "PLATFORM", index: true },
+  });
+}

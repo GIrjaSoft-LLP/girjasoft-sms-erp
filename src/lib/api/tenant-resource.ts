@@ -27,7 +27,9 @@ import {
   applyFamilyHomeworkVisibility,
   assertHomeworkMutationAllowed,
   assertHomeworkVisibleToFamily,
+  isHomeworkReadOnlyActor,
 } from "@/lib/homework/access";
+import { resolveHomeworkWeekRange } from "@/lib/homework/week-range";
 import { assertMarksMutationAllowed } from "@/lib/marks/access";
 import { assertResultsMutationAllowed } from "@/lib/results/access";
 import { applyTeacherPayrollVisibility, assertTeacherHrConfigAllowed, isTeacherSelfService } from "@/lib/hr/access";
@@ -43,6 +45,24 @@ import {
   assertTeacherWritePayload,
   resolveTeacherAssignmentScope,
 } from "@/lib/teacher-scope";
+import { applyAdminPaymentToFee } from "@/lib/fees/collect";
+
+const PAYMENT_PROTECTED_FIELDS = [
+  "verificationStatus",
+  "source",
+  "appliedToFee",
+  "receiptFile",
+  "submittedBy",
+  "submittedByName",
+  "submittedAt",
+  "verifiedBy",
+  "verifiedAt",
+  "rejectionReason",
+];
+
+function stripPaymentProtectedFields(body: Record<string, unknown>) {
+  for (const key of PAYMENT_PROTECTED_FIELDS) delete body[key];
+}
 
 const STUDENT_LINKED = new Set(["marks", "results", "fees", "payments", "bookIssues", "transportAssignments"]);
 
@@ -81,7 +101,17 @@ export async function listResource(resourceKey: string, request: Request) {
   const status = url.searchParams.get("status");
   const date = url.searchParams.get("date");
   const day = url.searchParams.get("day");
-  if (status) query.status = status;
+  if (status) {
+    if (resourceKey === "payments") {
+      if (status === "CONFIRMED") {
+        query.verificationStatus = { $nin: ["PENDING_VERIFICATION", "REJECTED"] };
+      } else {
+        query.verificationStatus = status;
+      }
+    } else {
+      query.status = status;
+    }
+  }
   if (date) query.date = date;
   if (day) query.day = day;
 
@@ -147,7 +177,22 @@ export async function listResource(resourceKey: string, request: Request) {
   applyNoticeAudienceToQuery(ctx, resourceKey, visible);
   await applyTeacherScopeToQuery(ctx, resourceKey, visible, teacherScope);
   if (resourceKey === "payroll") await applyTeacherPayrollVisibility(ctx, visible);
-  let finder = resource.model.find(visible).sort({ createdAt: -1 }).limit(1000);
+
+  let weekRange: { startDate: string; endDate: string } | null = null;
+  if (resourceKey === "homework") {
+    const familyViewer = isHomeworkReadOnlyActor(ctx);
+    const requestedStart = url.searchParams.get("startDate");
+    const requestedEnd = url.searchParams.get("endDate");
+    if (familyViewer || (requestedStart && requestedEnd)) {
+      weekRange = resolveHomeworkWeekRange(requestedStart, requestedEnd);
+      visible.dueDate = { $gte: weekRange.startDate, $lte: weekRange.endDate };
+    }
+  }
+
+  let finder = resource.model
+    .find(visible)
+    .sort(resourceKey === "homework" && weekRange ? { dueDate: 1, createdAt: 1 } : { createdAt: -1 })
+    .limit(resourceKey === "homework" && weekRange ? 200 : 1000);
   const populate = RESOURCE_POPULATE[resourceKey] ?? [];
   for (const spec of populate) {
     finder = finder.populate(spec as never);
@@ -160,6 +205,7 @@ export async function listResource(resourceKey: string, request: Request) {
   }
   return json({
     items: hydrated,
+    ...(weekRange ? weekRange : {}),
   });
 }
 
@@ -173,6 +219,12 @@ export async function createResource(resourceKey: string, request: Request) {
     requirePerm(ctx, "fees.collect");
   }
   const body = stripClientWorkspaceId(await request.json()) as Record<string, unknown>;
+  if (resourceKey === "payments") {
+    stripPaymentProtectedFields(body);
+    body.verificationStatus = "CONFIRMED";
+    body.source = "ADMIN";
+    body.appliedToFee = false;
+  }
   if (resourceKey === "parents") {
     const studentIds = parseObjectIds(body.studentIds);
     const created = await Parent.create({
@@ -285,6 +337,9 @@ export async function createResource(resourceKey: string, request: Request) {
     ...body,
     workspaceId: new mongoose.Types.ObjectId(ctx.workspaceId),
   });
+  if (resourceKey === "payments") {
+    await applyAdminPaymentToFee(ctx.workspaceId, String(created._id), body.studentFeeId);
+  }
   await logWorkspace(ctx.session, ctx.workspaceId, `${resourceKey}.create`, resourceKey, String(created._id));
   return json({ item: created }, 201);
 }
@@ -340,6 +395,9 @@ export async function updateResource(resourceKey: string, id: string, request: R
   const teacherScope = await resolveTeacherAssignmentScope(ctx);
   await assertTeacherRecordAllowed(ctx, teacherScope, resourceKey, current.toObject());
   const body = stripClientWorkspaceId(await request.json()) as Record<string, unknown>;
+  if (resourceKey === "payments") {
+    stripPaymentProtectedFields(body);
+  }
   if (resourceKey === "homework") {
     assertHomeworkMutationAllowed(ctx);
     await assertHomeworkUpdateAllowed(ctx, current.toObject(), body);
