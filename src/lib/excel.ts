@@ -29,6 +29,30 @@ export function excelFileResponse(buffer: Buffer, filename: string) {
   });
 }
 
+function formatExcelDate(value: Date) {
+  if (Number.isNaN(value.getTime())) return "";
+  const year = value.getUTCFullYear();
+  const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(value.getUTCDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function excelCellText(raw: unknown): string {
+  if (raw == null || raw === "") return "";
+  if (raw instanceof Date) return formatExcelDate(raw);
+  if (typeof raw === "object") {
+    const cell = raw as { text?: unknown; result?: unknown; richText?: Array<{ text?: string }> };
+    if (typeof cell.text === "string" || typeof cell.text === "number") {
+      return String(cell.text).trim();
+    }
+    if (Array.isArray(cell.richText)) {
+      return cell.richText.map((part) => part.text ?? "").join("").trim();
+    }
+    if ("result" in cell) return excelCellText(cell.result);
+  }
+  return String(raw).trim();
+}
+
 export async function readExcelObjects(buffer: Buffer) {
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer as unknown as ArrayBuffer);
@@ -50,11 +74,7 @@ export async function readExcelObjects(buffer: Buffer) {
     let empty = true;
     headers.forEach((header, index) => {
       if (!header) return;
-      const raw = row.getCell(index + 1).value;
-      const value =
-        raw && typeof raw === "object" && "text" in raw
-          ? String((raw as { text: string }).text)
-          : String(raw ?? "").trim();
+      const value = excelCellText(row.getCell(index + 1).value);
       item[header] = value;
       if (value) empty = false;
     });

@@ -1,13 +1,38 @@
 export const STUDENT_EXCEL_HEADERS = [
-  "admissionNumber",
-  "name",
-  "gender",
-  "dateOfBirth",
-  "phone",
-  "email",
-  "address",
-  "status",
-];
+  "Admission No",
+  "Student Name",
+  "Class",
+  "Section",
+  "Date Of Birth",
+  "Gender",
+  "Parent Name",
+  "Relation",
+  "Parent Mobile",
+  "Parent Email ID",
+  "Status",
+  "Address",
+  "Academic Session",
+  "Current Roll No",
+] as const;
+
+export type StudentExcelHeader = (typeof STUDENT_EXCEL_HEADERS)[number];
+
+export const STUDENT_EXCEL_SAMPLE: Record<StudentExcelHeader, string> = {
+  "Admission No": "ADM-001",
+  "Student Name": "Sample Student",
+  "Class": "Class 1",
+  "Section": "A",
+  "Date Of Birth": "2012-04-15",
+  "Gender": "Female",
+  "Parent Name": "Sample Parent",
+  "Relation": "Father",
+  "Parent Mobile": "9999999999",
+  "Parent Email ID": "parent@school.com",
+  "Status": "ACTIVE",
+  "Address": "City",
+  "Academic Session": "2026-2027",
+  "Current Roll No": "1",
+};
 
 export const USER_EXCEL_HEADERS = [
   "name",

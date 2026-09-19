@@ -20,6 +20,13 @@ import {
   formatImportSummary,
   importAcademicRow,
 } from "@/lib/excel-academic";
+import {
+  buildStudentImportLookups,
+  exportStudentExcelRows,
+  importStudentExcelRow,
+  studentExcelHeaders,
+  studentExcelSampleRow,
+} from "@/lib/excel-students";
 import { cell, excelFileResponse, readExcelObjects, rowsToExcelBuffer } from "@/lib/excel";
 import { ensureParentLogin, parseObjectIds, syncParentStudents } from "@/lib/parent-account";
 import {
@@ -34,6 +41,9 @@ import { Parent, Staff, Teacher } from "@/models/workspace";
 type Ctx = { params: Promise<{ resource: string }> };
 
 function headersFor(resourceKey: string) {
+  if (resourceKey === "students") {
+    return studentExcelHeaders();
+  }
   if (isAcademicExcelResource(resourceKey)) {
     return academicHeaders(resourceKey);
   }
@@ -41,6 +51,9 @@ function headersFor(resourceKey: string) {
 }
 
 function sampleRow(resourceKey: string) {
+  if (resourceKey === "students") {
+    return studentExcelSampleRow();
+  }
   if (isAcademicExcelResource(resourceKey)) {
     return academicSampleRow(resourceKey);
   }
@@ -108,7 +121,11 @@ export async function GET(request: Request, ctx: Ctx) {
     const headers = headersFor(resourceKey);
     const records = template
       ? [sampleRow(resourceKey)]
-      : isAcademicExcelResource(resourceKey)
+      : resourceKey === "students"
+        ? await exportStudentExcelRows(
+            applyRecordVisibility(tenant, resourceKey, scopedQuery(tenant.workspaceId)),
+          )
+        : isAcademicExcelResource(resourceKey)
         ? await exportAcademicRows(resourceKey, tenant.workspaceId)
         : ((await resource.model
             .find(applyRecordVisibility(tenant, resourceKey, scopedQuery(tenant.workspaceId)))
@@ -166,6 +183,41 @@ export async function POST(request: Request, ctx: Ctx) {
         tenant.workspaceId,
         `${resourceKey.toUpperCase()}_IMPORTED`,
         resourceKey,
+        "",
+        { created, skipped, failed: errors.length },
+      );
+      return Response.json({
+        total: rows.length,
+        created,
+        skipped,
+        failed: errors.length,
+        errors,
+        errorReport,
+      });
+    }
+
+    if (resourceKey === "students") {
+      const lookups = await buildStudentImportLookups(tenant.workspaceId);
+      let created = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+
+      for (const [index, row] of rows.entries()) {
+        try {
+          const result = await importStudentExcelRow(tenant.workspaceId, row, lookups);
+          if (result.action === "created") created += 1;
+          else skipped += 1;
+        } catch (err) {
+          errors.push(`Row ${index + 2}: ${err instanceof Error ? err.message : "failed"}`);
+        }
+      }
+
+      const errorReport = formatImportSummary(rows.length, created, skipped, errors);
+      await logWorkspace(
+        tenant.session,
+        tenant.workspaceId,
+        "STUDENTS_IMPORTED",
+        "students",
         "",
         { created, skipped, failed: errors.length },
       );
