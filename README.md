@@ -38,3 +38,9 @@ Open [http://localhost:3000](http://localhost:3000) and sign in as `admin@girjas
 ```bash
 npm run test:security
 ```
+
+## Production deploy (AWS EC2)
+
+Pushes to `main` auto-deploy via GitHub Actions.
+
+See [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md) for EC2 bootstrap, GitHub secrets, and nginx setup.
