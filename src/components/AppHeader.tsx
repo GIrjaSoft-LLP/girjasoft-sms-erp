@@ -198,8 +198,8 @@ export function AppHeader({
             <Link
               href={dashboardHref}
               aria-label="Dashboard"
-              className={`group relative grid h-9 w-9 shrink-0 place-items-center rounded-lg lg:inline-flex lg:h-auto lg:w-auto lg:px-3 lg:py-2 lg:font-medium ${
-                dashboardActive ? "bg-[#4c7eff] text-white" : "hover:bg-slate-100"
+              className={`group relative grid h-9 w-9 shrink-0 place-items-center rounded-lg text-white lg:inline-flex lg:h-auto lg:w-auto lg:px-3 lg:py-2 lg:font-medium ${
+                dashboardActive ? "bg-green-700 hover:bg-green-800" : "bg-green-600 hover:bg-green-700"
               }`}
             >
               <span className="lg:hidden">
